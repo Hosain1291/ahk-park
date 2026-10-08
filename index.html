@@ -26,10 +26,22 @@
       font-display: swap;
     }
 
-    /* 모든 텍스트 및 UI 요소에 조선일보명조 최우선 강제 적용 */
-    *, html, body, button, input, select, textarea, div, span, p, h1, h2, h3, h4, h5, h6, a, label {
-      font-family: 'ChosunIlboMyungjo', 'chosunilbo-myungjo', 'Batang', 'AppleMyungjo', serif !important;
+    /* 모든 텍스트 요소에 조선일보명조 적용 (아이콘 폰트 간섭 방지) */
+    html, body, button, input, select, textarea, div, span, p, h1, h2, h3, h4, h5, h6, a, label {
+      font-family: 'ChosunIlboMyungjo', 'chosunilbo-myungjo', 'Batang', 'AppleMyungjo', serif;
       letter-spacing: -0.015em;
+    }
+
+    /* Font Awesome 아이콘 폰트 서체 우선 적용 및 복원 */
+    i, .fa, .fa-solid, .fas, .far, .fa-regular, .fab, .fa-brands, [class*="fa-"] {
+      font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands" !important;
+      font-style: normal !important;
+      font-variant: normal !important;
+      text-rendering: auto !important;
+      -webkit-font-smoothing: antialiased !important;
+    }
+    .fab, .fa-brands {
+      font-family: "Font Awesome 6 Brands" !important;
     }
 
     /* 숫자 및 통계 데이터의 가독성을 위한 전용 서체 예외 */
