@@ -1400,9 +1400,16 @@
             }
           }
         } else {
-          const winner = (mapMode === 'first') ? matched.winner1 : matched.winner2;
-          fillColor = PARTY_COLORS[winner.party] || '#64748b';
-          fillOpacity = regMeta.opacity;
+          if (mapMode === 'first') {
+            // 1위 지도: 1위 당선 정당 색상 및 권역 지지강도
+            fillColor = PARTY_COLORS[matched.winner1.party] || '#64748b';
+            fillOpacity = regMeta.opacity;
+          } else {
+            // 2위 지도: 2위 당선 정당 색상 및 2위-3위 스윙 격차에 따른 채색 강도
+            fillColor = PARTY_COLORS[matched.winner2.party] || '#64748b';
+            // 2위-3위 격차가 클수록 안정권(진함), 박빙일수록 스윙 접전(연함)
+            fillOpacity = matched.margin23 >= 7.0 ? 0.90 : (matched.margin23 >= 3.0 ? 0.65 : 0.42);
+          }
         }
       }
 
