@@ -503,24 +503,24 @@
         </div>
 
         <div class="space-y-1 text-[11px]">
-          <div class="text-[10px] font-bold text-stone-600 dark:text-stone-400">권역별 지지강도 농도</div>
+          <div class="text-[10px] font-bold text-stone-600 dark:text-stone-400">정당별 지지강도 색상 (불투명 3단계)</div>
           <div class="flex items-center justify-between text-stone-800 dark:text-stone-300">
             <span class="flex items-center gap-1.5">
-              <span class="w-3 h-3 rounded bg-red-600 border border-black/30 dark:border-white/60"></span> 압승(壓勝, 15%p+)
+              <span class="w-3 h-3 rounded bg-red-800 border border-black/30 dark:border-white/60"></span> 압승(壓勝, 15%p+)
             </span>
-            <span class="text-[10px] text-stone-500 font-sans-num">원색 (0.95)</span>
+            <span class="text-[10px] text-stone-500 font-sans-num">짙은 원색</span>
           </div>
           <div class="flex items-center justify-between text-stone-800 dark:text-stone-300">
             <span class="flex items-center gap-1.5">
-              <span class="w-3 h-3 rounded bg-red-600/70 border border-black/30 dark:border-white/40"></span> 우세(優勢, 7~15%p)
+              <span class="w-3 h-3 rounded bg-red-600 border border-black/30 dark:border-white/40"></span> 우세(優勢, 7~15%p)
             </span>
-            <span class="text-[10px] text-stone-500 font-sans-num">중간 (0.70)</span>
+            <span class="text-[10px] text-stone-500 font-sans-num">표준 기본색</span>
           </div>
           <div class="flex items-center justify-between text-stone-800 dark:text-stone-300">
             <span class="flex items-center gap-1.5">
-              <span class="w-3 h-3 rounded bg-red-600/40 border border-black/30 dark:border-white/20"></span> 경합(競合, 7%p 미만)
+              <span class="w-3 h-3 rounded bg-red-400 border border-black/30 dark:border-white/20"></span> 경합(競合, 7%p 미만)
             </span>
-            <span class="text-[10px] text-stone-500 font-sans-num">담색 (0.45)</span>
+            <span class="text-[10px] text-stone-500 font-sans-num">밝은 연색</span>
           </div>
         </div>
       </div>
@@ -539,6 +539,38 @@
       dup: '#eab308',
       ind: '#64748b'
     };
+
+    const SOLID_PARTY_PALETTES = {
+      drp: {
+        strong: '#542006', // 짙은 갈색
+        lean: '#78350f',   // 기본 갈색
+        swing: '#b45309'   // 밝은 황갈색
+      },
+      ndp: {
+        strong: '#991b1b', // 짙은 적색
+        lean: '#dc2626',   // 기본 적색
+        swing: '#f87171'   // 밝은 연적색
+      },
+      dup: {
+        strong: '#a16207', // 짙은 황색/올리브황
+        lean: '#ca8a04',   // 기본 황색
+        swing: '#facc15'   // 밝은 레몬황색
+      },
+      ind: {
+        strong: '#334155', // 짙은 슬레이트
+        lean: '#64748b',   // 기본 회색
+        swing: '#94a3b8'   // 밝은 슬레이트 회색
+      }
+    };
+
+    function getSolidFillColor(party, tier = 'lean') {
+      const p = party || 'ind';
+      const t = tier || 'lean';
+      if (SOLID_PARTY_PALETTES[p] && SOLID_PARTY_PALETTES[p][t]) {
+        return SOLID_PARTY_PALETTES[p][t];
+      }
+      return PARTY_COLORS[p] || '#64748b';
+    }
 
     const PARTY_NAMES = {
       drp: '민주공화당(民主共和黨)',
