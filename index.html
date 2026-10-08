@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Yushin, Again</title>
+  <title>Yushin, Again - 特別總選 開票狀況室</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Leaflet CSS & JS -->
@@ -14,150 +14,137 @@
   <!-- html2canvas for Screenshot Capture -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   
+  <style>
+    @font-face {
+      font-family: 'ChosunIlboMyungjo';
+      src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_one@1.0/Chosunilbo_myungjo.woff') format('woff');
+      font-weight: normal;
+      font-display: swap;
+    }
+
+    * {
+      font-family: 'ChosunIlboMyungjo', 'Pretendard', -apple-system, serif;
+      letter-spacing: -0.015em;
+    }
+
+    .font-sans-num {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+      font-feature-settings: 'tnum';
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    /* 1970년대 관제 공보 & 상황판 하이브리드 팔레트 */
+    .dark body {
+      background-color: #0c0a09;
+      color: #f5f5f4;
+    }
+    html:not(.dark) body {
+      background-color: #f5f4f0;
+      color: #1c1917;
+    }
+
+    #map-wrapper {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 100%;
+      overflow: hidden;
+    }
+
+    #map {
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 100% !important;
+      z-index: 1;
+      background-color: #0c0a09;
+    }
+
+    .dark #map { background-color: #0c0a09; }
+    html:not(.dark) #map { background-color: #f5f4f0; }
+
+    .leaflet-tile-pane,
+    .leaflet-control-attribution {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+    }
+
+    .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+    .dark .custom-scroll::-webkit-scrollbar-thumb { background: #44403c; border-radius: 9999px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 9999px; }
+    
+    .dark .leaflet-popup-content-wrapper {
+      background: #1c1917;
+      color: #f5f5f4;
+      border: 1px solid #78350f;
+      border-radius: 6px;
+      box-shadow: 0 15px 25px rgba(0, 0, 0, 0.6);
+    }
+    .dark .leaflet-popup-tip { background: #1c1917; }
+
+    html:not(.dark) .leaflet-popup-content-wrapper {
+      background: #ffffff;
+      color: #1c1917;
+      border: 1px solid #b45309;
+      border-radius: 6px;
+      box-shadow: 0 15px 25px rgba(0, 0, 0, 0.15);
+    }
+    html:not(.dark) .leaflet-popup-tip { background: #ffffff; }
+
+    .leaflet-control-zoom {
+      border: none !important;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+      border-radius: 6px !important;
+      overflow: hidden;
+    }
+    .leaflet-control-zoom a {
+      background-color: #292524 !important;
+      color: #f5f5f4 !important;
+      border-bottom: 1px solid #44403c !important;
+    }
+    html:not(.dark) .leaflet-control-zoom a {
+      background-color: #ffffff !important;
+      color: #1c1917 !important;
+      border-bottom: 1px solid #e7e5e4 !important;
+    }
+
+    .yushin-border {
+      border-color: #78350f;
+    }
+    .yushin-glow {
+      box-shadow: 0 0 15px -3px rgba(180, 83, 9, 0.25);
+    }
+  </style>
+
   <script>
-    // 17개 광역시·도 명칭(풀네임, 축약형, 흔한 표기) 기반 권역 정의
     const METRO_DEFINITIONS = [
-      {
-        id: 'seoul',
-        metroId: 'seoul',
-        metroName: '서울특별시',
-        name: '서울특별시',
-        region: 'capital',
-        aliases: ['서울특별시', '서울시', '서울']
-      },
-      {
-        id: 'busan',
-        metroId: 'busan',
-        metroName: '부산광역시',
-        name: '부산광역시',
-        region: 'pk',
-        aliases: ['부산광역시', '부산시', '부산']
-      },
-      {
-        id: 'daegu',
-        metroId: 'daegu',
-        metroName: '대구광역시',
-        name: '대구광역시',
-        region: 'tk',
-        aliases: ['대구광역시', '대구시', '대구']
-      },
-      {
-        id: 'incheon',
-        metroId: 'incheon',
-        metroName: '인천광역시',
-        name: '인천광역시',
-        region: 'capital',
-        aliases: ['인천광역시', '인천시', '인천']
-      },
-      {
-        id: 'gwangju',
-        metroId: 'gwangju',
-        metroName: '광주광역시',
-        name: '광주광역시',
-        region: 'honam',
-        aliases: ['광주광역시', '광주시', '광주']
-      },
-      {
-        id: 'daejeon',
-        metroId: 'daejeon',
-        metroName: '대전광역시',
-        name: '대전광역시',
-        region: 'chungcheong',
-        aliases: ['대전광역시', '대전시', '대전']
-      },
-      {
-        id: 'ulsan',
-        metroId: 'ulsan',
-        metroName: '울산광역시',
-        name: '울산광역시',
-        region: 'pk',
-        aliases: ['울산광역시', '울산시', '울산']
-      },
-      {
-        id: 'sejong',
-        metroId: 'sejong',
-        metroName: '세종특별자치시',
-        name: '세종특별자치시',
-        region: 'chungcheong',
-        aliases: ['세종특별자치시', '세종시', '세종']
-      },
-      {
-        id: 'gyeonggi',
-        metroId: 'gyeonggi',
-        metroName: '경기도',
-        name: '경기도',
-        region: 'capital',
-        aliases: ['경기도', '경기']
-      },
-      {
-        id: 'gangwon',
-        metroId: 'gangwon',
-        metroName: '강원특별자치도',
-        name: '강원특별자치도',
-        region: 'gangwon',
-        aliases: ['강원특별자치도', '강원도', '강원']
-      },
-      {
-        id: 'chungbuk',
-        metroId: 'chungbuk',
-        metroName: '충청북도',
-        name: '충청북도',
-        region: 'chungcheong',
-        aliases: ['충청북도', '충북']
-      },
-      {
-        id: 'chungnam',
-        metroId: 'chungnam',
-        metroName: '충청남도',
-        name: '충청남도',
-        region: 'chungcheong',
-        aliases: ['충청남도', '충남']
-      },
-      {
-        id: 'jeonbuk',
-        metroId: 'jeonbuk',
-        metroName: '전북특별자치도',
-        name: '전북특별자치도',
-        region: 'honam',
-        aliases: ['전북특별자치도', '전라북도', '전북']
-      },
-      {
-        id: 'jeonnam',
-        metroId: 'jeonnam',
-        metroName: '전라남도',
-        name: '전라남도',
-        region: 'honam',
-        aliases: ['전라남도', '전남']
-      },
-      {
-        id: 'gyeongbuk',
-        metroId: 'gyeongbuk',
-        metroName: '경상북도',
-        name: '경상북도',
-        region: 'tk',
-        aliases: ['경상북도', '경북']
-      },
-      {
-        id: 'gyeongnam',
-        metroId: 'gyeongnam',
-        metroName: '경상남도',
-        name: '경상남도',
-        region: 'pk',
-        aliases: ['경상남도', '경남']
-      },
-      {
-        id: 'jeju',
-        metroId: 'jeju',
-        metroName: '제주특별자치도',
-        name: '제주특별자치도',
-        region: 'jeju',
-        aliases: ['제주특별자치도', '제주도', '제주']
-      }
+      { id: 'seoul', metroId: 'seoul', metroName: '서울특별시', name: '서울특별시', region: 'capital', aliases: ['서울특별시', '서울시', '서울'] },
+      { id: 'busan', metroId: 'busan', metroName: '부산광역시', name: '부산광역시', region: 'pk', aliases: ['부산광역시', '부산시', '부산'] },
+      { id: 'daegu', metroId: 'daegu', metroName: '대구광역시', name: '대구광역시', region: 'tk', aliases: ['대구광역시', '대구시', '대구'] },
+      { id: 'incheon', metroId: 'incheon', metroName: '인천광역시', name: '인천광역시', region: 'capital', aliases: ['인천광역시', '인천시', '인천'] },
+      { id: 'gwangju', metroId: 'gwangju', metroName: '광주광역시', name: '광주광역시', region: 'honam', aliases: ['광주광역시', '광주시', '광주'] },
+      { id: 'daejeon', metroId: 'daejeon', metroName: '대전광역시', name: '대전광역시', region: 'chungcheong', aliases: ['대전광역시', '대전시', '대전'] },
+      { id: 'ulsan', metroId: 'ulsan', metroName: '울산광역시', name: '울산광역시', region: 'pk', aliases: ['울산광역시', '울산시', '울산'] },
+      { id: 'sejong', metroId: 'sejong', metroName: '세종특별자치시', name: '세종특별자치시', region: 'chungcheong', aliases: ['세종특별자치시', '세종시', '세종'] },
+      { id: 'gyeonggi', metroId: 'gyeonggi', metroName: '경기도', name: '경기도', region: 'capital', aliases: ['경기도', '경기'] },
+      { id: 'gangwon', metroId: 'gangwon', metroName: '강원특별자치도', name: '강원특별자치도', region: 'gangwon', aliases: ['강원특별자치도', '강원도', '강원'] },
+      { id: 'chungbuk', metroId: 'chungbuk', metroName: '충청북도', name: '충청북도', region: 'chungcheong', aliases: ['충청북도', '충북'] },
+      { id: 'chungnam', metroId: 'chungnam', metroName: '충청남도', name: '충청남도', region: 'chungcheong', aliases: ['충청남도', '충남'] },
+      { id: 'jeonbuk', metroId: 'jeonbuk', metroName: '전북특별자치도', name: '전북특별자치도', region: 'honam', aliases: ['전북특별자치도', '전라북도', '전북'] },
+      { id: 'jeonnam', metroId: 'jeonnam', metroName: '전라남도', name: '전라남도', region: 'honam', aliases: ['전라남도', '전남'] },
+      { id: 'gyeongbuk', metroId: 'gyeongbuk', metroName: '경상북도', name: '경상북도', region: 'tk', aliases: ['경상북도', '경북'] },
+      { id: 'gyeongnam', metroId: 'gyeongnam', metroName: '경상남도', name: '경상남도', region: 'pk', aliases: ['경상남도', '경남'] },
+      { id: 'jeju', metroId: 'jeju', metroName: '제주특별자치도', name: '제주특별자치도', region: 'jeju', aliases: ['제주특별자치도', '제주도', '제주'] }
     ];
 
-    // 행정구역 텍스트나 선거구명 앞머리에서 17개 시·도 및 권역을 100% 정밀 파악
     function parseMetroAndRegion(text, properties = {}) {
-      // 1. properties 내 광역 시도 코드(SIG_CD 앞 2자리) 기반 즉시 정확 판별
       const sigCd = String(properties.SIG_CD || properties.adm_cd || properties.code || properties.id || '').trim();
       if (sigCd.length >= 2) {
         const prefix = sigCd.substring(0, 2);
@@ -171,7 +158,7 @@
           '31': { metroId: 'ulsan', region: 'pk' },
           '36': { metroId: 'sejong', region: 'chungcheong' },
           '41': { metroId: 'gyeonggi', region: 'capital' },
-          '42': { metroId: 'gangwon', region: 'gangwon' }, // 구 강원코드
+          '42': { metroId: 'gangwon', region: 'gangwon' },
           '43': { metroId: 'chungbuk', region: 'chungcheong' },
           '44': { metroId: 'chungnam', region: 'chungcheong' },
           '45': { metroId: 'jeonbuk', region: 'honam' },
@@ -179,19 +166,15 @@
           '47': { metroId: 'gyeongbuk', region: 'tk' },
           '48': { metroId: 'gyeongnam', region: 'pk' },
           '50': { metroId: 'jeju', region: 'jeju' },
-          '51': { metroId: 'gangwon', region: 'gangwon' }, // 강원특별자치도 신규
-          '52': { metroId: 'jeonbuk', region: 'honam' }    // 전북특별자치도 신규
+          '51': { metroId: 'gangwon', region: 'gangwon' },
+          '52': { metroId: 'jeonbuk', region: 'honam' }
         };
         if (codeMap[prefix]) {
           const matchDef = METRO_DEFINITIONS.find(m => m.metroId === codeMap[prefix].metroId);
-          if (matchDef) {
-            return { metro: matchDef, region: matchDef.region };
-          }
+          if (matchDef) return { metro: matchDef, region: matchDef.region };
         }
       }
 
-      // 2. 텍스트(선거구명, SGG_NM, DISTRICT_NM 등)에서 시·도 명칭 검색
-      // 여러 텍스트 후보들을 모아 확인
       const searchStrings = [
         String(text || ''),
         String(properties.DISTRICT_NM || ''),
@@ -203,10 +186,10 @@
       ];
       const combined = searchStrings.join(' ');
 
-      // 0. 경기도 광주시 및 성남시 중원구 오인식 방지 최우선 강제 매핑 (광주광역시 호남 오분류 원천 차단)
+      // 경기도 광주시 및 성남시 중원구 오인식 방지 (수도권 확정)
       if (
         combined.includes('중원') || 
-        combined.includes('경기') && combined.includes('광주') ||
+        (combined.includes('경기') && combined.includes('광주')) ||
         combined.includes('광주시·중원') ||
         combined.includes('광주·중원') ||
         combined.includes('광주시·중원구') ||
@@ -220,9 +203,7 @@
         return { metro: item, region: 'capital' };
       }
 
-      // 앞머리 또는 포함된 17개 광역시도 명칭 정밀 대조 (긴 명칭부터 우선 검색)
       for (const item of METRO_DEFINITIONS) {
-        // 광주광역시 체크 시 경기도 광주 지명이 섞여있으면 스킵
         if (item.metroId === 'gwangju' && (combined.includes('중원') || combined.includes('경기'))) {
           continue;
         }
@@ -233,53 +214,40 @@
         }
       }
 
-      // 3. 시도명이 생략된 경우 기초 지자체/선거구 핵심 지명으로 역추적
       if (combined.includes('수원') || combined.includes('성남') || combined.includes('분당') || combined.includes('고양') || combined.includes('용인') || combined.includes('부천') || combined.includes('안산') || combined.includes('안양') || combined.includes('남양주') || combined.includes('화성') || combined.includes('평택') || combined.includes('시흥') || combined.includes('파주') || combined.includes('의정부') || combined.includes('김포') || combined.includes('광명') || combined.includes('군포') || combined.includes('하남') || combined.includes('오산') || combined.includes('이천') || combined.includes('안성') || combined.includes('의왕') || combined.includes('양주') || combined.includes('포천') || combined.includes('여주') || combined.includes('동두천') || combined.includes('과천') || combined.includes('가평') || combined.includes('양평') || combined.includes('연천')) {
-        const item = METRO_DEFINITIONS.find(m => m.metroId === 'gyeonggi');
-        return { metro: item, region: 'capital' };
+        return { metro: METRO_DEFINITIONS.find(m => m.metroId === 'gyeonggi'), region: 'capital' };
       }
       if (combined.includes('종로') || combined.includes('중구') || combined.includes('용산') || combined.includes('성동') || combined.includes('광진') || combined.includes('동대문') || combined.includes('중랑') || combined.includes('성북') || combined.includes('강북') || combined.includes('도봉') || combined.includes('노원') || combined.includes('은평') || combined.includes('서대문') || combined.includes('마포') || combined.includes('양천') || combined.includes('강서') || combined.includes('구로') || combined.includes('금천') || combined.includes('영등포') || combined.includes('동작') || combined.includes('관악') || combined.includes('서초') || combined.includes('강남') || combined.includes('송파') || combined.includes('강동')) {
-        const item = METRO_DEFINITIONS.find(m => m.metroId === 'seoul');
-        return { metro: item, region: 'capital' };
+        return { metro: METRO_DEFINITIONS.find(m => m.metroId === 'seoul'), region: 'capital' };
       }
-      if (combined.includes('미추홀') || combined.includes('연수') || combined.includes('남동') || combined.includes('부평') || combined.includes('계양') || combined.includes('서구') && combined.includes('인천') || combined.includes('강화') || combined.includes('옹진')) {
-        const item = METRO_DEFINITIONS.find(m => m.metroId === 'incheon');
-        return { metro: item, region: 'capital' };
+      if (combined.includes('미추홀') || combined.includes('연수') || combined.includes('남동') || combined.includes('부평') || combined.includes('계양') || (combined.includes('서구') && combined.includes('인천')) || combined.includes('강화') || combined.includes('옹진')) {
+        return { metro: METRO_DEFINITIONS.find(m => m.metroId === 'incheon'), region: 'capital' };
       }
       if (combined.includes('창원') || combined.includes('진주') || combined.includes('통영') || combined.includes('사천') || combined.includes('김해') || combined.includes('밀양') || combined.includes('거제') || combined.includes('양산') || combined.includes('의령') || combined.includes('함안') || combined.includes('창녕') || combined.includes('고성') || combined.includes('남해') || combined.includes('하동') || combined.includes('산청') || combined.includes('함양') || combined.includes('거창') || combined.includes('합천')) {
-        const item = METRO_DEFINITIONS.find(m => m.metroId === 'gyeongnam');
-        return { metro: item, region: 'pk' };
+        return { metro: METRO_DEFINITIONS.find(m => m.metroId === 'gyeongnam'), region: 'pk' };
       }
       if (combined.includes('포항') || combined.includes('경주') || combined.includes('김천') || combined.includes('안동') || combined.includes('구미') || combined.includes('영주') || combined.includes('영천') || combined.includes('상주') || combined.includes('문경') || combined.includes('경산') || combined.includes('군위') || combined.includes('의성') || combined.includes('청송') || combined.includes('영양') || combined.includes('영덕') || combined.includes('청도') || combined.includes('고령') || combined.includes('성주') || combined.includes('칠곡') || combined.includes('예천') || combined.includes('봉화') || combined.includes('울진') || combined.includes('울릉')) {
-        const item = METRO_DEFINITIONS.find(m => m.metroId === 'gyeongbuk');
-        return { metro: item, region: 'tk' };
+        return { metro: METRO_DEFINITIONS.find(m => m.metroId === 'gyeongbuk'), region: 'tk' };
       }
       if (combined.includes('전주') || combined.includes('군산') || combined.includes('익산') || combined.includes('정읍') || combined.includes('남원') || combined.includes('김제') || combined.includes('완주') || combined.includes('진안') || combined.includes('무주') || combined.includes('장수') || combined.includes('임실') || combined.includes('순창') || combined.includes('고창') || combined.includes('부안')) {
-        const item = METRO_DEFINITIONS.find(m => m.metroId === 'jeonbuk');
-        return { metro: item, region: 'honam' };
+        return { metro: METRO_DEFINITIONS.find(m => m.metroId === 'jeonbuk'), region: 'honam' };
       }
       if (combined.includes('목포') || combined.includes('여수') || combined.includes('순천') || combined.includes('나주') || combined.includes('광양') || combined.includes('담양') || combined.includes('곡성') || combined.includes('구례') || combined.includes('고흥') || combined.includes('보성') || combined.includes('화순') || combined.includes('장흥') || combined.includes('강진') || combined.includes('해남') || combined.includes('영암') || combined.includes('무안') || combined.includes('함평') || combined.includes('영광') || combined.includes('장성') || combined.includes('완도') || combined.includes('진도') || combined.includes('신안')) {
-        const item = METRO_DEFINITIONS.find(m => m.metroId === 'jeonnam');
-        return { metro: item, region: 'honam' };
+        return { metro: METRO_DEFINITIONS.find(m => m.metroId === 'jeonnam'), region: 'honam' };
       }
       if (combined.includes('천안') || combined.includes('공주') || combined.includes('보령') || combined.includes('아산') || combined.includes('서산') || combined.includes('논산') || combined.includes('계룡') || combined.includes('당진') || combined.includes('금산') || combined.includes('부여') || combined.includes('서천') || combined.includes('청양') || combined.includes('홍성') || combined.includes('예산') || combined.includes('태안')) {
-        const item = METRO_DEFINITIONS.find(m => m.metroId === 'chungnam');
-        return { metro: item, region: 'chungcheong' };
+        return { metro: METRO_DEFINITIONS.find(m => m.metroId === 'chungnam'), region: 'chungcheong' };
       }
       if (combined.includes('청주') || combined.includes('충주') || combined.includes('제천') || combined.includes('보은') || combined.includes('옥천') || combined.includes('영동') || combined.includes('증평') || combined.includes('진천') || combined.includes('괴산') || combined.includes('음성') || combined.includes('단양')) {
-        const item = METRO_DEFINITIONS.find(m => m.metroId === 'chungbuk');
-        return { metro: item, region: 'chungcheong' };
+        return { metro: METRO_DEFINITIONS.find(m => m.metroId === 'chungbuk'), region: 'chungcheong' };
       }
-      if (combined.includes('춘천') || combined.includes('원주') || combined.includes('강릉') || combined.includes('동해') || combined.includes('태백') || combined.includes('속초') || combined.includes('삼척') || combined.includes('홍천') || combined.includes('횡성') || combined.includes('영월') || combined.includes('평창') || combined.includes('정선') || combined.includes('철원') || combined.includes('화천') || combined.includes('양구') || combined.includes('인제') || combined.includes('고성') && combined.includes('강원') || combined.includes('양양')) {
-        const item = METRO_DEFINITIONS.find(m => m.metroId === 'gangwon');
-        return { metro: item, region: 'gangwon' };
+      if (combined.includes('춘천') || combined.includes('원주') || combined.includes('강릉') || combined.includes('동해') || combined.includes('태백') || combined.includes('속초') || combined.includes('삼척') || combined.includes('홍천') || combined.includes('횡성') || combined.includes('영월') || combined.includes('평창') || combined.includes('정선') || combined.includes('철원') || combined.includes('화천') || combined.includes('양구') || combined.includes('인제') || (combined.includes('고성') && combined.includes('강원')) || combined.includes('양양')) {
+        return { metro: METRO_DEFINITIONS.find(m => m.metroId === 'gangwon'), region: 'gangwon' };
       }
       if (combined.includes('서귀포')) {
-        const item = METRO_DEFINITIONS.find(m => m.metroId === 'jeju');
-        return { metro: item, region: 'jeju' };
+        return { metro: METRO_DEFINITIONS.find(m => m.metroId === 'jeju'), region: 'jeju' };
       }
 
-      // 기본값 수도권/서울
       return { metro: METRO_DEFINITIONS[0], region: 'capital' };
     }
 
@@ -291,140 +259,67 @@
       return parseMetroAndRegion(districtName, properties).metro;
     }
   </script>
-
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800;900&display=swap');
-    * { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; }
-    
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-    }
-
-    #map-wrapper {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      min-height: 100%;
-      overflow: hidden;
-      background-color: #0b1120;
-    }
-
-    #map {
-      width: 100% !important;
-      height: 100% !important;
-      min-height: 100% !important;
-      z-index: 1;
-      background-color: #0b1120;
-    }
-
-    .dark #map { background-color: #090d16; }
-    html:not(.dark) #map { background-color: #f8fafc; }
-
-    .leaflet-tile-pane,
-    .leaflet-control-attribution {
-      display: none !important;
-      visibility: hidden !important;
-      opacity: 0 !important;
-    }
-
-    .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
-    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
-    .dark .custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
-    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
-    
-    .dark .leaflet-popup-content-wrapper {
-      background: #0f172a;
-      color: #f8fafc;
-      border: 1px solid #334155;
-      border-radius: 14px;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
-    }
-    .dark .leaflet-popup-tip { background: #0f172a; }
-
-    html:not(.dark) .leaflet-popup-content-wrapper {
-      background: #ffffff;
-      color: #0f172a;
-      border: 1px solid #e2e8f0;
-      border-radius: 14px;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
-    }
-    html:not(.dark) .leaflet-popup-tip { background: #ffffff; }
-
-    .leaflet-control-zoom {
-      border: none !important;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
-      border-radius: 10px !important;
-      overflow: hidden;
-    }
-    .leaflet-control-zoom a {
-      background-color: #1e293b !important;
-      color: #f8fafc !important;
-      border-bottom: 1px solid #334155 !important;
-    }
-    html:not(.dark) .leaflet-control-zoom a {
-      background-color: #ffffff !important;
-      color: #0f172a !important;
-      border-bottom: 1px solid #e2e8f0 !important;
-    }
-  </style>
 </head>
-<body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 h-screen flex flex-col overflow-hidden transition-colors duration-200">
 
-  <header class="h-[68px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 flex items-center justify-between z-30 shrink-0 shadow-sm">
-    <div class="flex items-center gap-2.5">
-      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-900 via-red-600 to-yellow-500 flex items-center justify-center shadow-md shrink-0">
-        <i class="fa-solid fa-landmark-flag text-white text-lg"></i>
+<body class="bg-stone-100 dark:bg-[#0c0a09] text-stone-900 dark:text-stone-100 h-screen flex flex-col overflow-hidden transition-colors duration-200">
+
+  <header class="h-[68px] bg-[#1c1917]/95 text-stone-100 border-b-2 border-[#78350f] px-3 sm:px-6 flex items-center justify-between z-30 shrink-0 shadow-lg relative">
+    <div class="flex items-center gap-3">
+      <!-- 유신 관제 휘장 스타일 로고 -->
+      <div class="w-10 h-10 rounded-lg bg-gradient-to-b from-[#b45309] to-[#78350f] flex flex-col items-center justify-center shadow-md shrink-0 border border-[#f59e0b]/40">
+        <span class="text-[9px] font-black text-amber-200 leading-none">維新</span>
+        <i class="fa-solid fa-landmark text-white text-xs mt-0.5"></i>
       </div>
       <div>
-        <div class="flex items-center gap-1.5 sm:gap-2">
-          <h1 class="text-sm sm:text-lg font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
-            Yushin, Again
-            <span id="badge-election-mode" class="text-[10px] sm:text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-600/30 px-2 py-0.5 rounded font-bold">1구 2인 국회 총선</span>
+        <div class="flex items-center gap-2">
+          <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-1.5">
+            <span>Yushin, Again</span>
+            <span class="text-xs text-amber-400 font-normal">| 특별총선 개표상황실(特別總選 開票狀況室)</span>
           </h1>
+          <span id="badge-election-mode" class="text-[10px] bg-amber-950 text-amber-300 border border-amber-600/60 px-2 py-0.5 rounded font-bold">1구 2인 중선거구 총선</span>
         </div>
-        <p class="hidden sm:block text-[11px] text-slate-500 dark:text-slate-400">민주공화당(갈색) · 신민당(빨강) · 민주통일당(노랑) · 무소속(회색) 득표 및 당락 분석</p>
+        <p class="hidden sm:block text-[11px] text-stone-400 font-normal">
+          민주공화당(民主共和黨·갈색) · 신민당(新民黨·적색) · 민주통일당(民主統一黨·황색) · 무소속(無所屬·회색) 실시간 개표
+        </p>
       </div>
     </div>
 
-    <!-- Mode Switcher (총선 / 시도지사 지선 2원화) -->
-    <div class="flex items-center bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-300 dark:border-slate-800 text-xs font-bold">
-      <button id="nav-btn-assembly" onclick="setElectionScope('assembly')" class="px-3 py-1.5 rounded-lg transition-all bg-amber-800 text-white shadow-sm flex items-center gap-1.5">
-        <i class="fa-solid fa-users-rectangle"></i> <span>총선 (1구2인)</span>
+    <!-- Mode Switcher (총선 / 시·도지사 지선) -->
+    <div class="flex items-center bg-[#292524] p-1 rounded-md border border-[#44403c] text-xs font-bold">
+      <button id="nav-btn-assembly" onclick="setElectionScope('assembly')" class="px-3 py-1.5 rounded transition-all bg-[#78350f] text-amber-100 shadow-sm flex items-center gap-1.5 border border-amber-600/30">
+        <i class="fa-solid fa-users-rectangle"></i> <span>총선 (1구 2인)</span>
       </button>
-      <button id="nav-btn-governor" onclick="setElectionScope('governor')" class="px-3 py-1.5 rounded-lg transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5">
-        <i class="fa-solid fa-building-columns"></i> <span>지선 (시도지사)</span>
+      <button id="nav-btn-governor" onclick="setElectionScope('governor')" class="px-3 py-1.5 rounded transition-all text-stone-400 hover:text-white flex items-center gap-1.5">
+        <i class="fa-solid fa-building-columns"></i> <span>시·도지사 선거</span>
       </button>
     </div>
 
-    <!-- Right Controls: 1st/2nd Map Toggle, Map Capture, Theme Toggle, Mobile Drawer -->
+    <!-- Right Controls -->
     <div class="flex items-center gap-1.5 sm:gap-2">
       <!-- 1위 / 2위 지도 토글 -->
-      <div id="map-mode-toggle-group" class="bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-300 dark:border-slate-800 flex items-center">
-        <button id="btn-mode-1st" onclick="setMapMode('first')" class="px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all bg-red-600 text-white shadow-sm flex items-center gap-1">
+      <div id="map-mode-toggle-group" class="bg-[#292524] p-1 rounded-md border border-[#44403c] flex items-center">
+        <button id="btn-mode-1st" onclick="setMapMode('first')" class="px-2.5 sm:px-3 py-1 rounded text-xs font-bold transition-all bg-[#b91c1c] text-white shadow-sm flex items-center gap-1 border border-red-500/30">
           <i class="fa-solid fa-trophy text-[10px]"></i> 1위 지도
         </button>
-        <button id="btn-mode-2nd" onclick="setMapMode('second')" class="px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1">
+        <button id="btn-mode-2nd" onclick="setMapMode('second')" class="px-2.5 sm:px-3 py-1 rounded text-xs font-normal transition-all text-stone-400 hover:text-white flex items-center gap-1">
           <i class="fa-solid fa-medal text-[10px]"></i> 2위 지도
         </button>
       </div>
 
-      <!-- 지도 사진 저장(캡처) 버튼 -->
-      <button onclick="downloadMapImage()" id="btn-capture" class="px-2.5 sm:px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 transition flex items-center gap-1.5 text-xs font-bold shadow-sm" title="현재 지도 화면 이미지(PNG) 저장">
-        <i class="fa-solid fa-camera text-emerald-500"></i>
-        <span class="hidden sm:inline">지도 저장</span>
+      <!-- 지도 사진 저장 -->
+      <button onclick="downloadMapImage()" id="btn-capture" class="px-2.5 sm:px-3 py-1.5 rounded bg-[#292524] text-stone-300 hover:bg-[#44403c] border border-[#57534e] transition flex items-center gap-1.5 text-xs font-bold shadow-sm" title="현재 지도 화면을 이미지(PNG)로 저장합니다">
+        <i class="fa-solid fa-camera text-amber-400"></i>
+        <span class="hidden sm:inline">사진 저장</span>
       </button>
 
       <!-- 테마 토글 버튼 -->
-      <button id="theme-toggle-btn" onclick="toggleTheme()" class="p-2 sm:p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition border border-slate-300 dark:border-slate-700" title="화이트/다크 테마 전환">
+      <button id="theme-toggle-btn" onclick="toggleTheme()" class="p-2 rounded bg-[#292524] text-stone-300 hover:bg-[#44403c] transition border border-[#57534e]" title="화이트/다크 테마 전환">
         <i id="theme-toggle-icon" class="fa-solid fa-moon text-xs sm:text-sm"></i>
       </button>
 
       <!-- 모바일 사이드바 열기 버튼 -->
-      <button onclick="toggleSidebar()" class="lg:hidden p-2 sm:p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700">
-        <i class="fa-solid fa-sliders text-xs sm:text-sm"></i>
+      <button onclick="toggleSidebar()" class="lg:hidden p-2 rounded bg-[#292524] text-stone-300 hover:bg-[#44403c]">
+        <i class="fa-solid fa-bars text-xs sm:text-sm"></i>
       </button>
     </div>
   </header>
@@ -432,62 +327,63 @@
   <main class="flex-1 relative flex overflow-hidden w-full h-[calc(100vh-68px)]">
 
     <!-- Left Sidebar -->
-    <aside id="sidebar" class="w-full sm:w-[450px] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-30 transition-transform duration-300 absolute lg:relative inset-y-0 left-0 shadow-2xl -translate-x-full lg:translate-x-0 h-full">
+    <aside id="sidebar" class="w-full sm:w-[450px] bg-stone-50 dark:bg-[#141210] border-r-2 border-stone-300 dark:border-[#44403c] flex flex-col z-30 transition-transform duration-300 absolute lg:relative inset-y-0 left-0 shadow-2xl -translate-x-full lg:translate-x-0 h-full">
       
-      <!-- Panel Tabs: 총선 설정 / 시도지사 지선(랜덤) / 반원 의석 / 선거구 결과 4분할 -->
-      <div class="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 p-2 gap-1 text-[10px] sm:text-[11px] font-bold shrink-0">
-        <button id="tab-btn-assembly-setting" onclick="switchSettingTab('assembly-setting')" class="flex-1 py-2 px-1 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-700 transition-all text-center truncate">
-          <i class="fa-solid fa-sliders text-amber-500 mr-0.5"></i> 총선 설정
+      <!-- Panel Tabs: 총선 설정 / 시·도지사 / 반원 의석 / 선거구 결과 -->
+      <div class="flex border-b border-stone-300 dark:border-[#44403c] bg-stone-200 dark:bg-[#1c1917] p-2 gap-1 text-[11px] font-bold shrink-0">
+        <button id="tab-btn-assembly-setting" onclick="switchSettingTab('assembly-setting')" class="flex-1 py-2 px-1 rounded bg-stone-50 dark:bg-[#292524] text-stone-900 dark:text-amber-100 shadow-sm border border-stone-300 dark:border-[#78350f] transition-all text-center truncate">
+          <i class="fa-solid fa-sliders text-amber-600 dark:text-amber-400 mr-0.5"></i> 총선 설정
         </button>
-        <button id="tab-btn-governor-setting" onclick="switchSettingTab('governor-setting')" class="flex-1 py-2 px-1 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all text-center truncate">
-          <i class="fa-solid fa-dice text-emerald-500 mr-0.5"></i> 시도지사
+        <button id="tab-btn-governor-setting" onclick="switchSettingTab('governor-setting')" class="flex-1 py-2 px-1 rounded text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white transition-all text-center truncate">
+          <i class="fa-solid fa-dice text-emerald-600 mr-0.5"></i> 시·도지사
         </button>
-        <button id="tab-btn-detail" onclick="switchSettingTab('detail')" class="flex-1 py-2 px-1 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all text-center truncate">
-          <i class="fa-solid fa-chart-pie text-red-500 mr-0.5"></i> 반원 의석
+        <button id="tab-btn-detail" onclick="switchSettingTab('detail')" class="flex-1 py-2 px-1 rounded text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white transition-all text-center truncate">
+          <i class="fa-solid fa-chart-pie text-red-600 mr-0.5"></i> 반원 의석
         </button>
-        <button id="tab-btn-district-result" onclick="switchSettingTab('district-result')" class="flex-1 py-2 px-1 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all text-center truncate">
-          <i class="fa-solid fa-location-crosshairs text-sky-500 mr-0.5"></i> 선거구 결과
+        <button id="tab-btn-district-result" onclick="switchSettingTab('district-result')" class="flex-1 py-2 px-1 rounded text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white transition-all text-center truncate">
+          <i class="fa-solid fa-location-crosshairs text-sky-600 mr-0.5"></i> 선거구 결과
         </button>
       </div>
 
+      <!-- 1. 총선 설정 탭 -->
       <div id="tab-content-assembly-setting" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4">
-        <div class="bg-amber-500/10 border border-amber-600/30 p-3 rounded-2xl flex items-center justify-between text-xs">
+        <div class="bg-amber-500/10 border-l-4 border-[#b45309] p-3 rounded-r-lg flex items-center justify-between text-xs">
           <div>
-            <div class="font-extrabold text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
-              <i class="fa-solid fa-users-rectangle"></i> 7대 권역 정당 지지율 (무소속 포함)
+            <div class="font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-stamp"></i> 7대 권역 정당 지지율 설정 (무소속 포함)
             </div>
-            <div class="text-[10px] text-slate-500 dark:text-slate-400">숫자를 직접 입력하면 전국 선거구 1위 정당 색상이 자동 반영됩니다.</div>
+            <div class="text-[10px] text-stone-500 dark:text-stone-400">수치를 수정하면 전국의 선거구 1위 정당 판세가 즉시 산정됩니다.</div>
           </div>
-          <button onclick="resetAssemblyInputs()" class="text-[11px] text-amber-700 dark:text-amber-300 font-bold underline hover:text-amber-900">기본값 복원</button>
+          <button onclick="resetAssemblyInputs()" class="text-[11px] text-amber-800 dark:text-amber-400 font-bold underline hover:text-amber-600">기본값 복원</button>
         </div>
 
         <div id="assembly-inputs-container" class="space-y-3">
           <!-- Dynamically populated 4 party inputs per region -->
         </div>
 
-        <button onclick="runSimulation()" class="w-full py-3 bg-gradient-to-r from-red-600 via-amber-700 to-yellow-600 hover:brightness-110 font-black rounded-xl text-white shadow-lg transition active:scale-[0.98] flex items-center justify-center gap-2 text-xs">
+        <button onclick="runSimulation()" class="w-full py-3 bg-gradient-to-r from-[#78350f] via-[#b45309] to-[#78350f] hover:brightness-110 font-bold rounded-lg text-amber-100 shadow-md transition active:scale-[0.98] flex items-center justify-center gap-2 text-xs border border-amber-500/30">
           <i class="fa-solid fa-calculator"></i> 전국 총선 판세 즉시 재계산
         </button>
       </div>
 
+      <!-- 2. 시·도지사 지선 탭 -->
       <div id="tab-content-governor-setting" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 hidden">
-        <div class="bg-emerald-500/10 border border-emerald-600/30 p-3.5 rounded-2xl flex items-center justify-between text-xs">
+        <div class="bg-emerald-500/10 border-l-4 border-emerald-600 p-3 rounded-r-lg flex items-center justify-between text-xs">
           <div>
-            <div class="font-extrabold text-emerald-800 dark:text-emerald-400 flex items-center gap-1.5">
+            <div class="font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
               <i class="fa-solid fa-building-columns"></i> 17개 시·도지사 선거 (무작위 득표율)
             </div>
-            <div class="text-[10px] text-slate-500 dark:text-slate-400">각 시도별 지지율과 퍼센트가 무작위로 산출됩니다.</div>
+            <div class="text-[10px] text-stone-500 dark:text-stone-400">각 시·도별 후보 득표율이 난수로 실시간 추첨되어 결정됩니다.</div>
           </div>
-          <button onclick="randomizeGovernorResults()" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[11px] shadow-sm flex items-center gap-1">
-            <i class="fa-solid fa-dice"></i> 퍼센트 랜덤 재추첨
+          <button onclick="randomizeGovernorResults()" class="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded font-bold text-[11px] shadow-sm flex items-center gap-1">
+            <i class="fa-solid fa-dice"></i> 난수 재추첨
           </button>
         </div>
 
-        <!-- 17개 시·도지사 당선 결과 목록 -->
-        <div class="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
-          <div class="flex items-center justify-between text-xs font-black">
+        <div class="bg-stone-100 dark:bg-[#1c1917] p-3 rounded-lg border border-stone-300 dark:border-[#44403c] space-y-2">
+          <div class="flex items-center justify-between text-xs font-bold">
             <span>17개 시·도지사 당선 현황</span>
-            <span id="governor-tally-badge" class="font-mono text-[10px] text-emerald-600 dark:text-emerald-400">집계중</span>
+            <span id="governor-tally-badge" class="font-sans-num text-[10px] text-emerald-600 dark:text-emerald-400">집계중</span>
           </div>
           <div id="governor-list-container" class="space-y-2 max-h-[calc(100vh-270px)] overflow-y-auto custom-scroll pr-1">
             <!-- Dynamically populated -->
@@ -495,92 +391,88 @@
         </div>
       </div>
 
-      <!-- 반원 의석 전용 탭 -->
+      <!-- 3. 반원 의석 탭 (부채형 반원 도넛 45% 홀) -->
       <div id="tab-content-detail" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 hidden">
-        
-        <!-- 부채형 반원 도넛 차트 (빈 폭 45% 고정, 의석 도트 배제) -->
-        <div class="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+        <div class="bg-stone-100 dark:bg-[#1c1917] p-4 rounded-lg border-2 border-stone-300 dark:border-[#78350f] text-center yushin-glow">
           <div class="flex items-center justify-between mb-2">
-            <h3 class="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-              <i class="fa-solid fa-chart-pie text-amber-500"></i> 국회 반원 도넛 의석 차트 (빈 폭 45%)
+            <h3 class="text-xs font-bold text-stone-800 dark:text-amber-200 tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-chart-pie text-amber-600"></i> 국회 반원 의석 현황 (국회의원 總選)
             </h3>
-            <span id="total-seats-count-badge" class="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">총 0석</span>
+            <span id="total-seats-count-badge" class="text-[11px] font-bold px-2 py-0.5 rounded bg-stone-200 dark:bg-[#292524] text-stone-800 dark:text-amber-200 font-sans-num border border-amber-800/30">총 0석</span>
           </div>
           
-          <!-- 반원 SVG 캔버스 (반원 도넛 45% 홀) -->
+          <!-- 반원 SVG 캔버스 -->
           <div class="relative w-full aspect-[2/1.05] flex items-center justify-center my-1 select-none">
             <svg id="hemicycle-svg" viewBox="0 0 400 215" class="w-full h-full overflow-visible drop-shadow-md">
               <!-- Dynamically populated semicircle donut -->
             </svg>
             <div class="absolute bottom-1 flex flex-col items-center pointer-events-none">
-              <span id="hemicycle-majority-text" class="text-[11px] font-black text-slate-900 dark:text-white">과반수: 0석</span>
-              <span id="hemicycle-status-sub" class="text-[10px] text-slate-400 font-medium">1구 2인 중선거구제 총선</span>
+              <span id="hemicycle-majority-text" class="text-[11px] font-bold text-stone-900 dark:text-white">과반수: 0석</span>
+              <span id="hemicycle-status-sub" class="text-[10px] text-stone-400">1구 2인 중선거구제 총선</span>
             </div>
           </div>
 
           <!-- 정당별 의석 범례 -->
-          <div class="grid grid-cols-4 gap-1.5 text-center mt-3 pt-2 border-t border-slate-200 dark:border-slate-800">
-            <div class="p-1.5 rounded-lg bg-amber-500/10 border border-amber-600/30">
+          <div class="grid grid-cols-4 gap-1.5 text-center mt-3 pt-2 border-t border-stone-300 dark:border-[#44403c]">
+            <div class="p-1.5 rounded bg-amber-500/10 border border-amber-700/40">
               <div class="flex items-center justify-center gap-1 mb-0.5">
                 <span class="w-2.5 h-2.5 rounded-full bg-[#78350f]"></span>
-                <span class="text-[10px] font-bold text-amber-800 dark:text-amber-300">공화</span>
+                <span class="text-[10px] font-bold text-amber-900 dark:text-amber-300">공화(共和)</span>
               </div>
-              <div id="chart-drp-seats" class="text-xs font-black text-amber-800 dark:text-amber-400">0석</div>
+              <div id="chart-drp-seats" class="text-xs font-bold font-sans-num text-amber-800 dark:text-amber-400">0석</div>
             </div>
-            <div class="p-1.5 rounded-lg bg-red-500/10 border border-red-600/30">
+            <div class="p-1.5 rounded bg-red-500/10 border border-red-700/40">
               <div class="flex items-center justify-center gap-1 mb-0.5">
                 <span class="w-2.5 h-2.5 rounded-full bg-[#dc2626]"></span>
-                <span class="text-[10px] font-bold text-red-600 dark:text-red-300">신민</span>
+                <span class="text-[10px] font-bold text-red-700 dark:text-red-300">신민(新民)</span>
               </div>
-              <div id="chart-ndp-seats" class="text-xs font-black text-red-600 dark:text-red-400">0석</div>
+              <div id="chart-ndp-seats" class="text-xs font-bold font-sans-num text-red-600 dark:text-red-400">0석</div>
             </div>
-            <div class="p-1.5 rounded-lg bg-yellow-500/10 border border-yellow-600/30">
+            <div class="p-1.5 rounded bg-yellow-500/10 border border-yellow-700/40">
               <div class="flex items-center justify-center gap-1 mb-0.5">
                 <span class="w-2.5 h-2.5 rounded-full bg-[#eab308]"></span>
-                <span class="text-[10px] font-bold text-yellow-700 dark:text-yellow-300">통일</span>
+                <span class="text-[10px] font-bold text-yellow-800 dark:text-yellow-300">통일(統一)</span>
               </div>
-              <div id="chart-dup-seats" class="text-xs font-black text-yellow-700 dark:text-yellow-400">0석</div>
+              <div id="chart-dup-seats" class="text-xs font-bold font-sans-num text-yellow-700 dark:text-yellow-400">0석</div>
             </div>
-            <div class="p-1.5 rounded-lg bg-slate-500/10 border border-slate-600/30">
+            <div class="p-1.5 rounded bg-stone-500/10 border border-stone-600/40">
               <div class="flex items-center justify-center gap-1 mb-0.5">
                 <span class="w-2.5 h-2.5 rounded-full bg-[#64748b]"></span>
-                <span class="text-[10px] font-bold text-slate-700 dark:text-slate-300">무소속</span>
+                <span class="text-[10px] font-bold text-stone-700 dark:text-stone-300">무소속(無)</span>
               </div>
-              <div id="chart-ind-seats" class="text-xs font-black text-slate-700 dark:text-slate-300">0석</div>
+              <div id="chart-ind-seats" class="text-xs font-bold font-sans-num text-stone-700 dark:text-stone-300">0석</div>
             </div>
           </div>
         </div>
 
-        <div class="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
-          <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">지도의 각 구역별 상세 득표와 당선 현황은 <strong class="text-slate-800 dark:text-slate-200">'선거구 결과'</strong> 탭에서 확인하실 수 있습니다.</p>
-          <button onclick="switchSettingTab('district-result')" class="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 mx-auto">
-            <i class="fa-solid fa-location-crosshairs text-sky-500"></i> 선거구 결과 탭으로 이동
+        <div class="p-3 bg-stone-100 dark:bg-[#1c1917] rounded-lg border border-stone-300 dark:border-[#44403c] text-center">
+          <p class="text-xs text-stone-600 dark:text-stone-400 mb-2">구역별 상세 득표 현황은 <strong class="text-stone-900 dark:text-amber-200">'선거구 결과'</strong> 탭에서 확인하십시오.</p>
+          <button onclick="switchSettingTab('district-result')" class="px-4 py-2 bg-stone-200 dark:bg-[#292524] hover:bg-stone-300 dark:hover:bg-[#44403c] text-stone-900 dark:text-amber-100 rounded text-xs font-bold transition flex items-center justify-center gap-1.5 mx-auto border border-stone-400 dark:border-[#78350f]">
+            <i class="fa-solid fa-location-crosshairs text-amber-600"></i> 선거구 결과 탭으로 이동
           </button>
         </div>
       </div>
 
-      <!-- 독립된 선거구 결과 전용 탭 -->
+      <!-- 4. 선거구 결과 전용 탭 -->
       <div id="tab-content-district-result" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 hidden">
-        <!-- 선택된 선거구 결과 카드 -->
-        <div id="district-info-card" class="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
-          <div class="text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-between">
-            <span class="flex items-center gap-1"><i class="fa-solid fa-location-crosshairs text-amber-500"></i> 선택된 선거구 결과</span>
-            <span class="text-[10px] bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-700 dark:text-slate-300 font-semibold" id="selected-district-region">지도를 클릭하세요</span>
+        <div id="district-info-card" class="bg-stone-100 dark:bg-[#1c1917] p-4 rounded-lg border border-stone-300 dark:border-[#44403c]">
+          <div class="text-xs font-bold text-stone-600 dark:text-stone-400 mb-2 flex items-center justify-between">
+            <span class="flex items-center gap-1"><i class="fa-solid fa-location-crosshairs text-amber-600"></i> 선택된 선거구 개표 결과</span>
+            <span class="text-[10px] bg-stone-200 dark:bg-[#292524] px-2 py-0.5 rounded text-stone-800 dark:text-stone-300 font-bold border border-stone-300 dark:border-[#57534e]" id="selected-district-region">지도에서 구역을 선택하십시오</span>
           </div>
-          <h2 class="text-base font-extrabold text-slate-900 dark:text-white mb-2" id="selected-district-name">선거구를 선택하면 정당별 득표와 당락이 표시됩니다</h2>
+          <h2 class="text-base font-bold text-stone-900 dark:text-amber-100 mb-2" id="selected-district-name">선거구를 선택하면 개표 결과가 조회됩니다</h2>
           
           <div id="selected-district-candidates" class="space-y-2 text-xs">
-            <p class="text-slate-400 text-center py-6">선거구를 클릭하거나 빠른 탐색 목록에서 선택하세요.</p>
+            <p class="text-stone-400 text-center py-6">지도의 구역을 직접 클릭하시거나 아래 신속 검색을 이용하십시오.</p>
           </div>
         </div>
 
-        <!-- 전국 선거구 빠른 탐색 목록 -->
-        <div class="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
-          <div class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 flex items-center justify-between">
-            <span class="flex items-center gap-1"><i class="fa-solid fa-magnifying-glass"></i> 전국 선거구 빠른 탐색</span>
-            <span id="fast-list-count" class="text-[10px] text-slate-400 font-mono">0개 구역</span>
+        <div class="bg-stone-100 dark:bg-[#1c1917] p-3 rounded-lg border border-stone-300 dark:border-[#44403c]">
+          <div class="text-xs font-bold text-stone-700 dark:text-stone-300 mb-1.5 flex items-center justify-between">
+            <span class="flex items-center gap-1"><i class="fa-solid fa-magnifying-glass text-amber-600"></i> 전국 선거구 신속 검색</span>
+            <span id="fast-list-count" class="text-[10px] text-stone-400 font-sans-num">0개 구역</span>
           </div>
-          <input type="text" id="district-search-input" oninput="filterDistrictList(this.value)" placeholder="선거구명 검색 (예: 종로, 수원, 대구, 부산...)" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-red-500">
+          <input type="text" id="district-search-input" oninput="filterDistrictList(this.value)" placeholder="선거구명 검색 (예: 종로, 수원, 대구, 부산...)" class="w-full bg-white dark:bg-[#0c0a09] border border-stone-300 dark:border-[#57534e] rounded px-3 py-2 text-xs text-stone-900 dark:text-white placeholder-stone-400 focus:outline-none focus:border-amber-600">
           <div id="district-fast-list" class="mt-2 max-h-56 overflow-y-auto custom-scroll space-y-1 text-xs">
             <!-- Dynamically populated buttons -->
           </div>
@@ -588,18 +480,18 @@
       </div>
     </aside>
 
+    <!-- Map Canvas & Legend -->
     <div class="flex-1 relative h-full min-h-0 w-full overflow-hidden" id="map-wrapper">
       <div id="map"></div>
 
       <!-- Floating Map Legend -->
-      <div class="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-3 sm:p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-2xl text-xs space-y-2 max-w-[240px]">
-        <div class="font-extrabold text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 pb-1.5 flex items-center justify-between">
+      <div class="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 z-20 bg-stone-100/95 dark:bg-[#1c1917]/95 backdrop-blur-md p-3 sm:p-3.5 rounded-lg border-2 border-stone-300 dark:border-[#78350f] shadow-2xl text-xs space-y-2 max-w-[240px]">
+        <div class="font-bold text-stone-900 dark:text-amber-100 border-b border-stone-300 dark:border-[#44403c] pb-1.5 flex items-center justify-between">
           <span id="legend-mode-title">1위 정당 및 지지강도</span>
-          <span id="legend-sub-scope" class="text-[10px] text-slate-400 font-mono">1구 2인제</span>
+          <span id="legend-sub-scope" class="text-[10px] text-stone-400 font-sans-num">1구 2인제</span>
         </div>
         
-        <!-- 정당 대표색 및 당기 -->
-        <div class="grid grid-cols-4 gap-1 text-[10px] pb-1 border-b border-slate-200 dark:border-slate-800 text-center font-bold">
+        <div class="grid grid-cols-4 gap-1 text-[10px] pb-1 border-b border-stone-300 dark:border-[#44403c] text-center font-bold">
           <div class="bg-[#78350f] text-amber-100 py-1 rounded flex items-center justify-center gap-0.5 shadow-sm">
             <span>공화</span>
           </div>
@@ -609,55 +501,60 @@
           <div class="bg-[#eab308] text-yellow-950 py-1 rounded flex items-center justify-center gap-0.5 shadow-sm">
             <span>통일</span>
           </div>
-          <div class="bg-[#64748b] text-slate-100 py-1 rounded flex items-center justify-center gap-0.5 shadow-sm">
+          <div class="bg-[#64748b] text-stone-100 py-1 rounded flex items-center justify-center gap-0.5 shadow-sm">
             <span>무소속</span>
           </div>
         </div>
 
-        <!-- 지지강도 농도 안내 -->
         <div class="space-y-1 text-[11px]">
-          <div class="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">권역별 지지강도 색상 농도</div>
-          <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
+          <div class="text-[10px] font-bold text-stone-600 dark:text-stone-400">권역별 지지강도 농도</div>
+          <div class="flex items-center justify-between text-stone-800 dark:text-stone-300">
             <span class="flex items-center gap-1.5">
-              <span class="w-3 h-3 rounded bg-red-600 border border-black/20 dark:border-white/60"></span> 권역 압승 (15%p+)
+              <span class="w-3 h-3 rounded bg-red-600 border border-black/30 dark:border-white/60"></span> 압승(壓勝, 15%p+)
             </span>
-            <span class="text-[10px] text-slate-500 font-medium">진한 원색 (0.95)</span>
+            <span class="text-[10px] text-stone-500 font-sans-num">원색 (0.95)</span>
           </div>
-          <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
+          <div class="flex items-center justify-between text-stone-800 dark:text-stone-300">
             <span class="flex items-center gap-1.5">
-              <span class="w-3 h-3 rounded bg-red-600/70 border border-black/20 dark:border-white/40"></span> 권역 우세 (7~15%p)
+              <span class="w-3 h-3 rounded bg-red-600/70 border border-black/30 dark:border-white/40"></span> 우세(優勢, 7~15%p)
             </span>
-            <span class="text-[10px] text-slate-500 font-medium">중간 채도 (0.70)</span>
+            <span class="text-[10px] text-stone-500 font-sans-num">중간 (0.70)</span>
           </div>
-          <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
+          <div class="flex items-center justify-between text-stone-800 dark:text-stone-300">
             <span class="flex items-center gap-1.5">
-              <span class="w-3 h-3 rounded bg-red-600/40 border border-black/20 dark:border-white/20"></span> 권역 경합 (7%p 미만)
+              <span class="w-3 h-3 rounded bg-red-600/40 border border-black/30 dark:border-white/20"></span> 경합(競合, 7%p 미만)
             </span>
-            <span class="text-[10px] text-slate-500 font-medium">연한 파스텔 (0.45)</span>
+            <span class="text-[10px] text-stone-500 font-sans-num">담색 (0.45)</span>
           </div>
         </div>
       </div>
     </div>
   </main>
 
-  <!-- Notification Toast -->
-  <div id="custom-toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white border border-slate-700 px-4 py-2.5 rounded-2xl shadow-2xl text-xs font-bold transition-all duration-300 opacity-0 pointer-events-none flex items-center gap-2">
-    <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400"></i>
+  <div id="custom-toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#1c1917] text-white border border-[#78350f] px-4 py-2.5 rounded-lg shadow-2xl text-xs font-bold transition-all duration-300 opacity-0 pointer-events-none flex items-center gap-2">
+    <i id="toast-icon" class="fa-solid fa-circle-check text-amber-400"></i>
     <span id="toast-message">알림</span>
   </div>
 
   <script>
     const PARTY_COLORS = {
-      drp: '#78350f', // 민주공화당: 갈색
-      ndp: '#dc2626', // 신민당: 빨간색
-      dup: '#eab308', // 민주통일당: 노란색
-      ind: '#64748b'  // 무소속: 슬레이트 그레이
+      drp: '#78350f',
+      ndp: '#dc2626',
+      dup: '#eab308',
+      ind: '#64748b'
     };
 
     const PARTY_NAMES = {
-      drp: '민주공화당',
-      ndp: '신민당',
-      dup: '민주통일당',
+      drp: '민주공화당(民主共和黨)',
+      ndp: '신민당(新民黨)',
+      dup: '민주통일당(民主統一黨)',
+      ind: '무소속(無所屬)'
+    };
+
+    const PARTY_SHORT_NAMES = {
+      drp: '공화',
+      ndp: '신민',
+      dup: '통일',
       ind: '무소속'
     };
 
@@ -670,21 +567,19 @@
 
     function getPartyFlagImg(party, sizeClass = 'w-3.5 h-3.5') {
       const src = PARTY_FLAGS[party] || PARTY_FLAGS.ind;
-      return `<img src="${src}" alt="${PARTY_NAMES[party] || '정당'}" class="${sizeClass} rounded-full object-cover shrink-0 inline-block border border-black/20 dark:border-white/30 shadow-xs" onerror="this.style.display='none'">`;
+      return `<img src="${src}" alt="${PARTY_SHORT_NAMES[party] || '정당'}" class="${sizeClass} rounded-full object-cover shrink-0 inline-block border border-black/20 dark:border-white/30 shadow-xs" onerror="this.style.display='none'">`;
     }
 
-    // 1. 총선용 7대 권역 정당 지지율 (공화, 신민, 통일 + 무소속)
     const ASSEMBLY_REGIONS_CONFIG = {
-      capital: { name: '수도권 (서울/경기/인천)', bias: { drp: 38, ndp: 42, dup: 12, ind: 8 } },
-      tk: { name: '대구·경북 (TK)', bias: { drp: 62, ndp: 18, dup: 10, ind: 10 } },
-      pk: { name: '부산·울산·경남 (PK)', bias: { drp: 48, ndp: 34, dup: 10, ind: 8 } },
-      honam: { name: '호남권 (광주/전남/전북)', bias: { drp: 15, ndp: 62, dup: 15, ind: 8 } },
-      chungcheong: { name: '충청권 (대전/세종/충남/충북)', bias: { drp: 43, ndp: 39, dup: 11, ind: 7 } },
-      gangwon: { name: '강원권', bias: { drp: 54, ndp: 29, dup: 8, ind: 9 } },
-      jeju: { name: '제주권', bias: { drp: 38, ndp: 42, dup: 11, ind: 9 } }
+      capital: { name: '수도권(首都圈·서울/경기/인천)', bias: { drp: 38, ndp: 42, dup: 12, ind: 8 } },
+      tk: { name: '대구·경북(TK)', bias: { drp: 62, ndp: 18, dup: 10, ind: 10 } },
+      pk: { name: '부산·울산·경남(PK)', bias: { drp: 48, ndp: 34, dup: 10, ind: 8 } },
+      honam: { name: '호남권(湖南圈·광주/전남/전북)', bias: { drp: 15, ndp: 62, dup: 15, ind: 8 } },
+      chungcheong: { name: '충청권(忠淸圈·대전/세종/충남/충북)', bias: { drp: 43, ndp: 39, dup: 11, ind: 7 } },
+      gangwon: { name: '강원권(江原圈)', bias: { drp: 54, ndp: 29, dup: 8, ind: 9 } },
+      jeju: { name: '제주권(濟州圈)', bias: { drp: 38, ndp: 42, dup: 11, ind: 9 } }
     };
 
-    // 17개 시·도 메타 정보
     const METRO_DIVISIONS = [
       { id: 'seoul', name: '서울특별시', region: 'capital' },
       { id: 'gyeonggi', name: '경기도', region: 'capital' },
@@ -705,7 +600,6 @@
       { id: 'jeju', name: '제주특별자치도', region: 'jeju' }
     ];
 
-    // CSV 및 지역 기반 선거구 고유 지형적 정당 편향 (district_mapping.csv 보강용)
     let DISTRICT_BASE_LEAN = {
       '종로': { drp: 2, ndp: 1, dup: 1, ind: 0 },
       '중구': { drp: 3, ndp: 0, dup: 0, ind: 1 },
@@ -768,8 +662,8 @@
     };
 
     let assemblySupport = JSON.parse(JSON.stringify(ASSEMBLY_REGIONS_CONFIG));
-    let electionScope = 'assembly'; // 'assembly' | 'governor'
-    let mapMode = 'first'; // 'first' | 'second'
+    let electionScope = 'assembly';
+    let mapMode = 'first';
     let simulationResults = [];
     let metroResults = [];
     let mapInstance = null;
@@ -778,7 +672,6 @@
     let currentTheme = 'dark';
     let rawLoadedGeoJson = null;
 
-    // Toast Notice
     function showToast(msg, icon = 'fa-solid fa-circle-check') {
       const toast = document.getElementById('custom-toast');
       const toastMsg = document.getElementById('toast-message');
@@ -801,11 +694,11 @@
       } else {
         currentTheme = 'dark';
         htmlEl.classList.add('dark');
-        themeIcon.className = 'fa-solid fa-moon text-slate-200 text-xs sm:text-sm';
+        themeIcon.className = 'fa-solid fa-moon text-stone-200 text-xs sm:text-sm';
       }
 
       const mapEl = document.getElementById('map');
-      if (mapEl) mapEl.style.backgroundColor = currentTheme === 'dark' ? '#090d16' : '#f8fafc';
+      if (mapEl) mapEl.style.backgroundColor = currentTheme === 'dark' ? '#0c0a09' : '#f5f4f0';
       if (geojsonLayer) {
         geojsonLayer.eachLayer(layer => { layer.setStyle(featureStyle(layer.feature)); });
       }
@@ -824,10 +717,10 @@
         const content = document.getElementById(`tab-content-${t}`);
         if (!btn || !content) return;
         if (t === tabId) {
-          btn.className = 'flex-1 py-2 px-1 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-700 transition-all text-center truncate';
+          btn.className = 'flex-1 py-2 px-1 rounded bg-stone-50 dark:bg-[#292524] text-stone-900 dark:text-amber-100 shadow-sm border border-stone-300 dark:border-[#78350f] transition-all text-center truncate font-bold';
           content.classList.remove('hidden');
         } else {
-          btn.className = 'flex-1 py-2 px-1 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all text-center truncate';
+          btn.className = 'flex-1 py-2 px-1 rounded text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white transition-all text-center truncate';
           content.classList.add('hidden');
         }
       });
@@ -842,17 +735,17 @@
       const badgeMode = document.getElementById('badge-election-mode');
 
       [navAssembly, navGov].forEach(b => {
-        b.className = 'px-3 py-1.5 rounded-lg transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5';
+        b.className = 'px-3 py-1.5 rounded transition-all text-stone-400 hover:text-white flex items-center gap-1.5';
       });
 
       if (scope === 'assembly') {
-        navAssembly.className = 'px-3 py-1.5 rounded-lg transition-all bg-amber-800 text-white shadow-sm flex items-center gap-1.5';
-        badgeMode.textContent = '1구 2인 국회 총선';
+        navAssembly.className = 'px-3 py-1.5 rounded transition-all bg-[#78350f] text-amber-100 shadow-sm flex items-center gap-1.5 border border-amber-600/30';
+        badgeMode.textContent = '1구 2인 중선거구 총선';
         mapToggleGrp.classList.remove('hidden');
         document.getElementById('legend-sub-scope').textContent = '1구 2인제';
         switchSettingTab('assembly-setting');
       } else {
-        navGov.className = 'px-3 py-1.5 rounded-lg transition-all bg-amber-800 text-white shadow-sm flex items-center gap-1.5';
+        navGov.className = 'px-3 py-1.5 rounded transition-all bg-[#78350f] text-amber-100 shadow-sm flex items-center gap-1.5 border border-amber-600/30';
         badgeMode.textContent = '17개 시·도지사 선거';
         mapToggleGrp.classList.add('hidden');
         document.getElementById('legend-sub-scope').textContent = '광역단체장';
@@ -869,12 +762,12 @@
       const legendTitle = document.getElementById('legend-mode-title');
 
       if (mode === 'first') {
-        btn1st.className = 'px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all bg-red-600 text-white shadow-sm flex items-center gap-1';
-        btn2nd.className = 'px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1';
+        btn1st.className = 'px-2.5 sm:px-3 py-1 rounded text-xs font-bold transition-all bg-[#b91c1c] text-white shadow-sm flex items-center gap-1 border border-red-500/30';
+        btn2nd.className = 'px-2.5 sm:px-3 py-1 rounded text-xs font-normal transition-all text-stone-400 hover:text-white flex items-center gap-1';
         if (legendTitle) legendTitle.textContent = '1위 정당 및 지지강도';
       } else {
-        btn2nd.className = 'px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all bg-amber-600 text-white shadow-sm flex items-center gap-1';
-        btn1st.className = 'px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1';
+        btn2nd.className = 'px-2.5 sm:px-3 py-1 rounded text-xs font-bold transition-all bg-[#b45309] text-white shadow-sm flex items-center gap-1 border border-amber-500/30';
+        btn1st.className = 'px-2.5 sm:px-3 py-1 rounded text-xs font-normal transition-all text-stone-400 hover:text-white flex items-center gap-1';
         if (legendTitle) legendTitle.textContent = '2위 당선정당 및 지지강도';
       }
 
@@ -897,33 +790,25 @@
       const margin = Math.max(0, first.pct - second.pct);
 
       let tier = 'swing';
-      let tierLabel = '경합';
+      let tierLabel = '경합(競合)';
       let opacity = 0.45;
-      let badgeClass = 'bg-slate-500/20 text-slate-700 dark:text-slate-300 border-slate-500/30';
+      let badgeClass = 'bg-stone-500/20 text-stone-700 dark:text-stone-300 border-stone-500/30';
 
       if (margin >= 15) {
         tier = 'strong';
-        tierLabel = '압승';
+        tierLabel = '압승(壓勝)';
         opacity = 0.95;
         badgeClass = 'bg-red-500/20 text-red-700 dark:text-red-300 border-red-500/40';
       } else if (margin >= 7) {
         tier = 'lean';
-        tierLabel = '우세';
+        tierLabel = '우세(優勢)';
         opacity = 0.70;
         badgeClass = 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40';
       }
 
-      return {
-        leaderParty: first.party,
-        margin,
-        tier,
-        tierLabel,
-        opacity,
-        badgeClass
-      };
+      return { leaderParty: first.party, margin, tier, tierLabel, opacity, badgeClass };
     }
 
-    // Load district_mapping.csv directly if accessible
     let CSV_DISTRICT_MAP = new Map();
 
     async function loadDistrictMappingCSV() {
@@ -934,9 +819,7 @@
           const text = await resp.text();
           parseDistrictMappingCSV(text);
         }
-      } catch (err) {
-        // Fallback with built-in DISTRICT_BASE_LEAN
-      }
+      } catch (err) {}
     }
 
     function parseDistrictMappingCSV(csvText) {
@@ -973,9 +856,7 @@
         }
       });
     }
-  </script>
 
-  <script>
     function renderAssemblyInputs() {
       const container = document.getElementById('assembly-inputs-container');
       container.innerHTML = '';
@@ -983,49 +864,49 @@
       Object.entries(assemblySupport).forEach(([key, reg]) => {
         const meta = getRegionStrengthMeta(key);
         const card = document.createElement('div');
-        card.className = 'bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2';
+        card.className = 'bg-stone-50 dark:bg-[#1c1917] p-3 rounded border border-stone-300 dark:border-[#44403c] space-y-2';
         card.innerHTML = `
-          <div class="flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-slate-800">
-            <span class="font-black text-xs text-slate-800 dark:text-white flex items-center gap-1">
+          <div class="flex items-center justify-between pb-1.5 border-b border-stone-200 dark:border-[#292524]">
+            <span class="font-bold text-xs text-stone-900 dark:text-amber-100 flex items-center gap-1">
               <i class="fa-solid fa-location-dot text-amber-600"></i> ${reg.name}
             </span>
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${meta.badgeClass}">
-              ${PARTY_NAMES[meta.leaderParty]} ${meta.tierLabel} (+${meta.margin}%p)
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold border font-sans-num ${meta.badgeClass}">
+              ${PARTY_SHORT_NAMES[meta.leaderParty]} ${meta.tierLabel} (+${meta.margin}%p)
             </span>
           </div>
 
           <div class="grid grid-cols-4 gap-1.5">
             <div>
-              <label class="text-[9px] font-bold text-amber-800 dark:text-amber-500 mb-0.5 block truncate">
+              <label class="text-[9px] font-bold text-amber-900 dark:text-amber-400 mb-0.5 block truncate">
                 공화(갈색)
               </label>
               <input type="number" min="0" max="100" value="${reg.bias.drp}"
                 oninput="onAssemblyInputChange('${key}', 'drp', this.value)"
-                class="w-full bg-white dark:bg-slate-900 border border-amber-800/40 rounded-lg px-1.5 py-1 text-xs text-right font-mono font-bold text-amber-800 dark:text-amber-300">
+                class="w-full bg-white dark:bg-[#0c0a09] border border-amber-900/40 rounded px-1.5 py-1 text-xs text-right font-sans-num font-bold text-amber-900 dark:text-amber-200 focus:outline-none focus:border-amber-600">
             </div>
             <div>
-              <label class="text-[9px] font-bold text-red-600 dark:text-red-400 mb-0.5 block truncate">
-                신민(빨강)
+              <label class="text-[9px] font-bold text-red-700 dark:text-red-400 mb-0.5 block truncate">
+                신민(적색)
               </label>
               <input type="number" min="0" max="100" value="${reg.bias.ndp}"
                 oninput="onAssemblyInputChange('${key}', 'ndp', this.value)"
-                class="w-full bg-white dark:bg-slate-900 border border-red-600/40 rounded-lg px-1.5 py-1 text-xs text-right font-mono font-bold text-red-600 dark:text-red-300">
+                class="w-full bg-white dark:bg-[#0c0a09] border border-red-700/40 rounded px-1.5 py-1 text-xs text-right font-sans-num font-bold text-red-700 dark:text-red-300 focus:outline-none focus:border-red-500">
             </div>
             <div>
-              <label class="text-[9px] font-bold text-yellow-600 dark:text-yellow-400 mb-0.5 block truncate">
-                통일(노랑)
+              <label class="text-[9px] font-bold text-yellow-800 dark:text-yellow-400 mb-0.5 block truncate">
+                통일(황색)
               </label>
               <input type="number" min="0" max="100" value="${reg.bias.dup}"
                 oninput="onAssemblyInputChange('${key}', 'dup', this.value)"
-                class="w-full bg-white dark:bg-slate-900 border border-yellow-600/40 rounded-lg px-1.5 py-1 text-xs text-right font-mono font-bold text-yellow-700 dark:text-yellow-300">
+                class="w-full bg-white dark:bg-[#0c0a09] border border-yellow-700/40 rounded px-1.5 py-1 text-xs text-right font-sans-num font-bold text-yellow-800 dark:text-yellow-300 focus:outline-none focus:border-yellow-500">
             </div>
             <div>
-              <label class="text-[9px] font-bold text-slate-600 dark:text-slate-400 mb-0.5 block truncate">
+              <label class="text-[9px] font-bold text-stone-700 dark:text-stone-400 mb-0.5 block truncate">
                 무소속(회색)
               </label>
               <input type="number" min="0" max="100" value="${reg.bias.ind}"
                 oninput="onAssemblyInputChange('${key}', 'ind', this.value)"
-                class="w-full bg-white dark:bg-slate-900 border border-slate-600/40 rounded-lg px-1.5 py-1 text-xs text-right font-mono font-bold text-slate-700 dark:text-slate-300">
+                class="w-full bg-white dark:bg-[#0c0a09] border border-stone-600/40 rounded px-1.5 py-1 text-xs text-right font-sans-num font-bold text-stone-700 dark:text-stone-300 focus:outline-none focus:border-stone-500">
             </div>
           </div>
         `;
@@ -1038,8 +919,6 @@
       if (isNaN(val) || val < 0) val = 0;
       if (val > 100) val = 100;
       assemblySupport[regionKey].bias[party] = val;
-      
-      // 권역 입력 변경 시 즉각 전국 시뮬레이션 및 선거구 전체 갱신 실행
       runSimulation();
     }
 
@@ -1050,14 +929,11 @@
       showToast("총선 지지율이 기본값으로 복원되었습니다.");
     }
 
-    // 2. 시도지사 무작위 득표율 시뮬레이터 (랜덤 생성)
     function randomizeGovernorResults() {
       const govTally = { drp: 0, ndp: 0, dup: 0, ind: 0 };
       
       metroResults = METRO_DIVISIONS.map(m => {
-        // 권역 지지율 기반에 랜덤 노이즈 결합
         const base = assemblySupport[m.region]?.bias || { drp: 40, ndp: 40, dup: 10, ind: 10 };
-        
         const rawDrp = Math.max(5, base.drp + (Math.floor(Math.random() * 25) - 12));
         const rawNdp = Math.max(5, base.ndp + (Math.floor(Math.random() * 25) - 12));
         const rawDup = Math.max(2, base.dup + (Math.floor(Math.random() * 16) - 8));
@@ -1088,16 +964,13 @@
       });
 
       document.getElementById('governor-tally-badge').textContent = `공화 ${govTally.drp} : 신민 ${govTally.ndp} : 통일 ${govTally.dup} : 무소속 ${govTally.ind}`;
-      
-      // 전국 각 선거구별 시·도지사 득표 현황도 동기화 계산
       updateAllDistrictsGovernorData();
       renderGovernorList();
       if (electionScope === 'governor') updateMapColorsAndPopups();
       if (activeSelectedDistrict) showDistrictDetail(activeSelectedDistrict);
-      showToast("17개 시·도지사 무작위 득표율이 추첨되었습니다.");
+      showToast("17개 시·도지사 득표율이 난수로 재추첨되었습니다.");
     }
 
-    // 개별 선거구 내에서의 시·도지사 후보별 득표율 산출 (광역 시도 기준 + 선거구 고유 지형 반영)
     function calculateDistrictGovernorVote(dist, metroData) {
       if (!metroData) return null;
       let customLean = { drp: 0, ndp: 0, dup: 0, ind: 0 };
@@ -1133,10 +1006,7 @@
       const second = parties[1] || { pct: 0 };
       const margin = parseFloat((winner.pct - second.pct).toFixed(1));
 
-      return {
-        parties,
-        winner: { ...winner, margin }
-      };
+      return { parties, winner: { ...winner, margin } };
     }
 
     function updateAllDistrictsGovernorData() {
@@ -1159,21 +1029,21 @@
 
         const card = document.createElement('div');
         card.id = `gov-card-${m.id}`;
-        card.className = 'p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-xs space-y-1.5';
+        card.className = 'p-2.5 rounded bg-white dark:bg-[#0c0a09] border border-stone-300 dark:border-[#44403c] shadow-sm text-xs space-y-1.5';
         card.innerHTML = `
           <div class="flex items-center justify-between">
-            <span class="font-black text-slate-800 dark:text-white flex items-center gap-1.5">
-              <i class="fa-solid fa-map-pin text-emerald-500 text-[10px]"></i> ${m.name}
+            <span class="font-bold text-stone-900 dark:text-white flex items-center gap-1.5">
+              <i class="fa-solid fa-map-pin text-amber-600 text-[10px]"></i> ${m.name}
             </span>
             <span class="text-[10px] px-2 py-0.5 rounded font-bold text-white shadow-xs flex items-center gap-1" style="background-color: ${color};">
-              ${flag} ${PARTY_NAMES[m.winner.party]} 당선 (+${m.winner.margin}%p)
+              ${flag} ${PARTY_SHORT_NAMES[m.winner.party]} 당선 (+${m.winner.margin}%p)
             </span>
           </div>
-          <div class="grid grid-cols-4 gap-1 text-[10px] font-mono text-center">
-            <div class="p-1 rounded bg-amber-500/10 text-amber-800 dark:text-amber-400 font-bold truncate">공화 ${m.parties.find(c=>c.party==='drp')?.pct || 0}%</div>
-            <div class="p-1 rounded bg-red-500/10 text-red-600 dark:text-red-400 font-bold truncate">신민 ${m.parties.find(c=>c.party==='ndp')?.pct || 0}%</div>
-            <div class="p-1 rounded bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 font-bold truncate">통일 ${m.parties.find(c=>c.party==='dup')?.pct || 0}%</div>
-            <div class="p-1 rounded bg-slate-500/10 text-slate-600 dark:text-slate-400 font-bold truncate">무 ${m.parties.find(c=>c.party==='ind')?.pct || 0}%</div>
+          <div class="grid grid-cols-4 gap-1 text-[10px] font-sans-num text-center">
+            <div class="p-1 rounded bg-amber-500/10 text-amber-900 dark:text-amber-400 font-bold truncate">공화 ${m.parties.find(c=>c.party==='drp')?.pct || 0}%</div>
+            <div class="p-1 rounded bg-red-500/10 text-red-700 dark:text-red-400 font-bold truncate">신민 ${m.parties.find(c=>c.party==='ndp')?.pct || 0}%</div>
+            <div class="p-1 rounded bg-yellow-500/10 text-yellow-800 dark:text-yellow-400 font-bold truncate">통일 ${m.parties.find(c=>c.party==='dup')?.pct || 0}%</div>
+            <div class="p-1 rounded bg-stone-500/10 text-stone-700 dark:text-stone-400 font-bold truncate">무소속 ${m.parties.find(c=>c.party==='ind')?.pct || 0}%</div>
           </div>
         `;
         container.appendChild(card);
@@ -1189,8 +1059,6 @@
       const targetList = (rawLoadedGeoJson && rawLoadedGeoJson.features) 
         ? rawLoadedGeoJson.features.map((f, idx) => {
             const p = f.properties || {};
-            
-            // 1. CSV의 DISTRICT_NM 최우선 참조
             let dName = p.DISTRICT_NM || p.district_nm || p.DIST_NM || '';
             const featureCode = String(p.id || p.code || p.SIG_CD || p.adm_cd || '').toLowerCase();
             
@@ -1207,44 +1075,34 @@
               dName = p.name || p.SGG_NM || p.sgg_nm || p.adm_nm || p.SIG_KOR_NM || p.TITLE || p.EMD_KOR_NM || `제${idx + 1}선거구`;
             }
 
-            // 2. 17개 시·도 명칭 기반 정밀 권역 파악
             const parsed = parseMetroAndRegion(dName, p);
-            const regKey = parsed.region;
-            const metroObj = parsed.metro;
-
             return {
               id: String(p.id || p.code || p.SIG_CD || idx + 1000),
               name: dName,
-              region: regKey,
-              metro: metroObj,
+              region: parsed.region,
+              metro: parsed.metro,
               feature: f
             };
           })
         : getDefaultDistrictsList();
 
       targetList.forEach(dist => {
-        // 권역별 기본 지지율 (유저 입력 반영)
         const regSupport = assemblySupport[dist.region]?.bias || { drp: 40, ndp: 40, dup: 10, ind: 10 };
-        
-        // Find matching district base lean (CSV DISTRICT_NM 우선 검색)
         let customLean = { drp: 0, ndp: 0, dup: 0, ind: 0 };
         if (CSV_DISTRICT_MAP.has(dist.name.toLowerCase())) {
           customLean = CSV_DISTRICT_MAP.get(dist.name.toLowerCase());
         } else {
           for (const [key, l] of Object.entries(DISTRICT_BASE_LEAN)) {
             if (dist.name.includes(key)) {
-        customLean = l;
-        break;
-      }
-    }
-  }
+              customLean = l;
+              break;
+            }
+          }
+        }
 
-  // 4개 정당 스코어 계산: 권역 지지율이 최우선 주축으로 작동하도록 설계
         const parties = ['drp', 'ndp', 'dup', 'ind'];
         let partyScores = parties.map(party => {
-          // 권역 설정 지지율에 선거구 고유 지형적 보정치를 더해 계산
           const base = (regSupport[party] || 0) + (customLean[party] || 0);
-          
           let hash = 0;
           for (let i = 0; i < dist.name.length; i++) hash = (hash * 31 + dist.name.charCodeAt(i)) & 0xffffffff;
           const noise = 1.0 + (((Math.abs(hash) % 9) - 4) * 0.01);
@@ -1259,7 +1117,6 @@
           return { party: p.party, votePct, votes };
         });
 
-        // 득표순 정렬
         partyScores.sort((a, b) => b.votes - a.votes);
 
         const winner1 = partyScores[0];
@@ -1314,9 +1171,7 @@
         metro: inferMetroFromDistrict(name)
       }));
     }
-  </script>
 
-  <script>
     function drawSemicircleDonutChart() {
       const svg = document.getElementById('hemicycle-svg');
       if (!svg) return;
@@ -1344,16 +1199,16 @@
 
       const subStatusEl = document.getElementById('hemicycle-status-sub');
       const maxParty = [
-        { name: '신민당', seats: ndpSeats, color: '#dc2626' },
-        { name: '공화당', seats: drpSeats, color: '#78350f' },
-        { name: '통일당', seats: dupSeats, color: '#eab308' },
-        { name: '무소속', seats: indSeats, color: '#64748b' }
+        { name: '신민당(新民黨)', seats: ndpSeats, color: '#dc2626' },
+        { name: '민주공화당(民主共和黨)', seats: drpSeats, color: '#78350f' },
+        { name: '민주통일당(民主統一黨)', seats: dupSeats, color: '#eab308' },
+        { name: '무소속(無所屬)', seats: indSeats, color: '#64748b' }
       ].sort((a, b) => b.seats - a.seats)[0];
 
       if (maxParty && maxParty.seats >= majorityTarget) {
         subStatusEl.innerHTML = `<span class="font-bold text-emerald-500">${maxParty.name} 단독 과반 달성 (${maxParty.seats}석)</span>`;
       } else if (maxParty) {
-        subStatusEl.innerHTML = `원내 1당: <strong class="text-slate-800 dark:text-slate-200">${maxParty.name}</strong> (${maxParty.seats}석 / 과반까지 -${majorityTarget - maxParty.seats}석)`;
+        subStatusEl.innerHTML = `원내 1당: <strong class="text-stone-900 dark:text-amber-200">${maxParty.name}</strong> (${maxParty.seats}석 / 과반까지 -${majorityTarget - maxParty.seats}석)`;
       }
 
       const partyData = [
@@ -1366,8 +1221,7 @@
       const cx = 200;
       const cy = 200;
       const rOuter = 175;
-      // 정확한 반원 도넛 빈 폭(내경 홀) 45%
-      const rInner = rOuter * 0.45;
+      const rInner = rOuter * 0.45; // 45% 홀
 
       let currentAngle = Math.PI;
 
@@ -1390,7 +1244,7 @@
         
         path.setAttribute('d', d);
         path.setAttribute('fill', p.color);
-        path.setAttribute('stroke', currentTheme === 'dark' ? '#0f172a' : '#ffffff');
+        path.setAttribute('stroke', currentTheme === 'dark' ? '#0c0a09' : '#ffffff');
         path.setAttribute('stroke-width', '2.5');
         path.setAttribute('class', 'transition-all duration-300 hover:opacity-85 cursor-pointer');
 
@@ -1411,7 +1265,8 @@
           text.setAttribute('text-anchor', 'middle');
           text.setAttribute('fill', '#ffffff');
           text.setAttribute('font-size', '11');
-          text.setAttribute('font-weight', '900');
+          text.setAttribute('font-weight', 'bold');
+          text.setAttribute('font-family', 'sans-serif');
           text.setAttribute('filter', 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))');
           text.setAttribute('pointer-events', 'none');
           text.textContent = `${p.count}석`;
@@ -1421,7 +1276,6 @@
         currentAngle = endAngle;
       });
 
-      // 90도 과반선 점선 및 지표 핀
       const majLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       majLine.setAttribute('x1', cx);
       majLine.setAttribute('y1', cy - 180);
@@ -1443,7 +1297,7 @@
       majText.setAttribute('text-anchor', 'middle');
       majText.setAttribute('fill', '#ef4444');
       majText.setAttribute('font-size', '9.5');
-      majText.setAttribute('font-weight', '900');
+      majText.setAttribute('font-weight', 'bold');
       majText.textContent = `과반선 (${majorityTarget}석)`;
       svg.appendChild(majText);
     }
@@ -1536,7 +1390,6 @@
         const regMeta = matched.regionStrength || getRegionStrengthMeta(matched.region);
 
         if (electionScope === 'governor') {
-          // 선거구별 시·도지사 득표 1위 정당 색상 및 선거구 득표 격차 채색
           const govDistWinner = matched.governorData?.winner;
           if (govDistWinner) {
             fillColor = PARTY_COLORS[govDistWinner.party] || '#64748b';
@@ -1551,7 +1404,6 @@
             }
           }
         } else {
-          // 총선: 1위 또는 2위 지도 모드에 따른 정확한 색상 칠하기
           const winner = (mapMode === 'first') ? matched.winner1 : matched.winner2;
           fillColor = PARTY_COLORS[winner.party] || '#64748b';
           fillOpacity = regMeta.opacity;
@@ -1562,7 +1414,7 @@
         fillColor: fillColor,
         weight: 1.5,
         opacity: 0.9,
-        color: currentTheme === 'dark' ? '#0f172a' : '#ffffff',
+        color: currentTheme === 'dark' ? '#0c0a09' : '#ffffff',
         fillOpacity: fillOpacity
       };
     }
@@ -1571,7 +1423,7 @@
       layer.on({
         mouseover: (e) => {
           const l = e.target;
-          l.setStyle({ weight: 3, color: '#f59e0b', fillOpacity: 0.95 });
+          l.setStyle({ weight: 3, color: '#d97706', fillOpacity: 0.95 });
           l.bringToFront();
         },
         mouseout: (e) => {
@@ -1603,7 +1455,6 @@
     function selectDistrict(dist) {
       activeSelectedDistrict = dist;
       showDistrictDetail(dist);
-      // 지도에서 선거구를 클릭했을 때 '선거구 결과' 탭으로 전환하여 바로 확인 가능하게 지원
       switchSettingTab('district-result');
     }
 
@@ -1619,49 +1470,48 @@
       const container = document.getElementById('selected-district-candidates');
       container.innerHTML = '';
 
-      // 1. 선거구별(시·군·구) 시·도지사 선거 득표 상세 결과 섹션
       if (distGovData) {
         const govWinColor = PARTY_COLORS[distGovData.winner.party];
-        const govWinFlag = getPartyFlagImg(distGovData.winner.party, 'w-4 h-4');
+        const govWinFlag = getPartyFlagImg(distGovData.winner.party, 'w-3.5 h-3.5');
 
         const distGovSection = document.createElement('div');
-        distGovSection.className = 'p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 mb-3 space-y-2.5';
+        distGovSection.className = 'p-2.5 rounded bg-emerald-500/10 border border-emerald-600/30 mb-2.5 space-y-1.5';
         distGovSection.innerHTML = `
-          <div class="flex items-center justify-between pb-2 border-b border-emerald-500/20">
+          <div class="flex items-center justify-between pb-1 border-b border-emerald-600/20">
             <div>
-              <div class="text-xs font-black text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
-                <i class="fa-solid fa-square-poll-vertical text-emerald-600"></i> ${dist.name} 시·도지사 득표 결과
+              <div class="text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-1">
+                <i class="fa-solid fa-square-poll-vertical text-emerald-600 text-[10px]"></i> ${dist.name} 시·도지사 득표 현황
               </div>
-              <div class="text-[10px] text-slate-500 dark:text-slate-400">해당 선거구 주민들의 시·도지사 표심 집계</div>
+              <div class="text-[9.5px] text-stone-500 dark:text-stone-400">당해 구역 주민들의 시·도지사 표심</div>
             </div>
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-xs flex items-center gap-1" style="background-color: ${govWinColor};">
-              ${govWinFlag} ${PARTY_NAMES[distGovData.winner.party]} 1위 (+${distGovData.winner.margin}%p)
+            <span class="px-1.5 py-0.5 rounded text-[9.5px] font-bold text-white shadow-xs flex items-center gap-1" style="background-color: ${govWinColor};">
+              ${govWinFlag} ${PARTY_SHORT_NAMES[distGovData.winner.party]} 1위 (+${distGovData.winner.margin}%p)
             </span>
           </div>
 
-          <div class="space-y-1.5">
+          <div class="space-y-1">
             ${distGovData.parties.map((cand, idx) => {
               const pColor = PARTY_COLORS[cand.party];
-              const pFlag = getPartyFlagImg(cand.party, 'w-3.5 h-3.5');
+              const pFlag = getPartyFlagImg(cand.party, 'w-3 h-3');
               const isFirst = idx === 0;
               return `
-                <div class="p-2 rounded-xl bg-white dark:bg-slate-900 border ${isFirst ? 'border-emerald-500/40 shadow-xs' : 'border-slate-200 dark:border-slate-800 opacity-80'}">
+                <div class="p-1.5 rounded bg-white dark:bg-[#0c0a09] border ${isFirst ? 'border-emerald-600/40 shadow-xs' : 'border-stone-300 dark:border-[#44403c] opacity-85'}">
                   <div class="flex items-center justify-between text-xs mb-1">
                     <div class="flex items-center gap-1.5">
-                      <span class="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black ${isFirst ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}">
+                      <span class="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8.5px] font-bold ${isFirst ? 'bg-emerald-600 text-white' : 'bg-stone-200 dark:bg-[#292524] text-stone-500'}">
                         ${idx + 1}
                       </span>
-                      <span class="px-1.5 py-0.5 rounded text-[10px] font-bold text-white flex items-center gap-1" style="background-color: ${pColor};">
-                        ${pFlag} ${PARTY_NAMES[cand.party]}
+                      <span class="px-1.5 py-0.5 rounded text-[9.5px] font-bold text-white flex items-center gap-1" style="background-color: ${pColor};">
+                        ${pFlag} ${PARTY_SHORT_NAMES[cand.party]}
                       </span>
-                      ${isFirst ? '<span class="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1 rounded">구역 1위</span>' : ''}
+                      ${isFirst ? '<span class="text-[8.5px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1 rounded">구역 1위</span>' : ''}
                     </div>
                     <div class="text-right">
-                      <span class="font-mono font-black text-xs text-slate-800 dark:text-white">${cand.pct}%</span>
-                      <span class="text-[9px] text-slate-400 block font-mono">${cand.votes.toLocaleString()}표</span>
+                      <span class="font-sans-num font-bold text-xs text-stone-900 dark:text-white">${cand.pct}%</span>
+                      <span class="text-[9px] text-stone-400 block font-sans-num">${cand.votes.toLocaleString()}표</span>
                     </div>
                   </div>
-                  <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                  <div class="w-full bg-stone-200 dark:bg-stone-800 h-1.5 rounded-full overflow-hidden">
                     <div class="h-full rounded-full transition-all duration-300" style="width: ${cand.pct}%; background-color: ${pColor};"></div>
                   </div>
                 </div>
@@ -1669,14 +1519,13 @@
             }).join('')}
           </div>
 
-          <!-- 소속 광역시·도(전체) 최종 당선 현황 미니 배너 -->
           ${metroData ? `
-            <div class="mt-2 pt-2 border-t border-emerald-500/20 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400 bg-white/70 dark:bg-slate-900/70 p-2 rounded-xl">
+            <div class="mt-1.5 pt-1.5 border-t border-emerald-600/20 flex items-center justify-between text-[10.5px] text-stone-600 dark:text-stone-400 bg-white/70 dark:bg-[#0c0a09]/70 p-1.5 rounded">
               <span class="font-bold flex items-center gap-1">
-                <i class="fa-solid fa-landmark text-emerald-600"></i> ${metroData.name} 전체 당선:
+                <i class="fa-solid fa-landmark text-emerald-600 text-[9.5px]"></i> ${metroData.name} 전체 당선:
               </span>
-              <span class="font-extrabold flex items-center gap-1 text-slate-900 dark:text-white">
-                ${getPartyFlagImg(metroData.winner.party, 'w-3 h-3')} ${PARTY_NAMES[metroData.winner.party]} 확정 (+${metroData.winner.margin}%p)
+              <span class="font-bold flex items-center gap-1 text-stone-900 dark:text-white">
+                ${getPartyFlagImg(metroData.winner.party, 'w-2.5 h-2.5')} ${PARTY_NAMES[metroData.winner.party]} (+${metroData.winner.margin}%p)
               </span>
             </div>
           ` : ''}
@@ -1684,48 +1533,47 @@
         container.appendChild(distGovSection);
       }
 
-      // 2. 국회 총선 (1구 2인) 선거구 상세 결과 헤더 및 카드
       const divider = document.createElement('div');
-      divider.className = 'text-[11px] font-bold text-slate-500 dark:text-slate-400 pt-1 pb-1 flex items-center justify-between';
+      divider.className = 'text-[10.5px] font-bold text-stone-600 dark:text-stone-400 pt-0.5 pb-1 flex items-center justify-between';
       divider.innerHTML = `
-        <span class="flex items-center gap-1.5"><i class="fa-solid fa-users-rectangle text-amber-500"></i> 1구 2인 국회 총선 득표 현황</span>
-        <span class="text-[10px] text-slate-400 font-mono">상위 2인 동반 당선</span>
+        <span class="flex items-center gap-1"><i class="fa-solid fa-users-rectangle text-amber-600 text-[10px]"></i> 1구 2인 국회 총선 득표 현황</span>
+        <span class="text-[9.5px] text-stone-400 font-sans-num">상위 2인 동반 당선</span>
       `;
       container.appendChild(divider);
 
       dist.parties.forEach((item, idx) => {
         const isElected = idx < 2;
         const color = PARTY_COLORS[item.party];
-        const flagImg = getPartyFlagImg(item.party, 'w-4 h-4');
+        const flagImg = getPartyFlagImg(item.party, 'w-3.5 h-3.5');
 
         const card = document.createElement('div');
-        card.className = `p-2.5 rounded-xl border transition-all ${
+        card.className = `p-2 rounded border transition-all ${
           isElected 
-            ? 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 shadow-sm' 
-            : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 opacity-75'
+            ? 'bg-white dark:bg-[#0c0a09] border-stone-400 dark:border-[#57534e] shadow-xs' 
+            : 'bg-stone-50 dark:bg-[#141210] border-stone-300 dark:border-[#292524] opacity-80'
         }`;
 
         card.innerHTML = `
-          <div class="flex items-center justify-between mb-1.5">
+          <div class="flex items-center justify-between mb-1">
             <div class="flex items-center gap-1.5">
-              <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
-                idx === 0 ? 'bg-amber-400 text-black' : (idx === 1 ? 'bg-slate-300 text-black' : 'bg-slate-200 dark:bg-slate-800 text-slate-500')
+              <span class="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                idx === 0 ? 'bg-amber-400 text-black' : (idx === 1 ? 'bg-stone-300 text-black' : 'bg-stone-200 dark:bg-stone-800 text-stone-500')
               }">
                 ${idx + 1}
               </span>
-              <div class="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold text-white shadow-xs" style="background-color: ${color};">
+              <div class="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-white shadow-xs" style="background-color: ${color};">
                 ${flagImg}
                 <span>${PARTY_NAMES[item.party]}</span>
               </div>
-              ${isElected ? '<span class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 px-1.5 rounded bg-emerald-500/10">당선</span>' : '<span class="text-[10px] text-slate-400">낙선</span>'}
+              ${isElected ? '<span class="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 px-1 rounded bg-emerald-500/10">당선</span>' : '<span class="text-[9px] text-stone-400">낙선</span>'}
             </div>
             <div class="text-right">
-              <span class="font-mono text-sm font-black text-amber-600 dark:text-amber-400">${item.votePct}%</span>
-              <span class="text-[10px] text-slate-400 block font-mono">${item.votes.toLocaleString()}표</span>
+              <span class="font-sans-num text-xs font-bold text-amber-700 dark:text-amber-400">${item.votePct}%</span>
+              <span class="text-[9px] text-stone-400 block font-sans-num">${item.votes.toLocaleString()}표</span>
             </div>
           </div>
 
-          <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+          <div class="w-full bg-stone-200 dark:bg-stone-800 h-1.5 rounded-full overflow-hidden">
             <div class="h-full rounded-full transition-all duration-300" style="width: ${item.votePct}%; background-color: ${color};"></div>
           </div>
         `;
@@ -1741,7 +1589,7 @@
       document.getElementById('fast-list-count').textContent = `${list.length}개 구역`;
 
       if (list.length === 0) {
-        container.innerHTML = '<div class="text-center py-4 text-slate-400 text-xs">일치하는 선거구가 없습니다.</div>';
+        container.innerHTML = '<div class="text-center py-4 text-stone-400 text-xs">일치하는 선거구가 없습니다.</div>';
         return;
       }
 
@@ -1750,13 +1598,13 @@
         const flag2 = getPartyFlagImg(dist.winner2.party, 'w-3 h-3');
 
         const btn = document.createElement('button');
-        btn.className = 'w-full text-left p-2 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs transition shadow-sm';
+        btn.className = 'w-full text-left p-2 rounded bg-white dark:bg-[#0c0a09] hover:bg-stone-100 dark:hover:bg-[#292524] border border-stone-300 dark:border-[#44403c] flex items-center justify-between text-xs transition shadow-sm';
         btn.innerHTML = `
-          <span class="font-semibold text-slate-800 dark:text-slate-300 truncate">${dist.name}</span>
-          <div class="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 shrink-0">
-            <span class="flex items-center gap-0.5">${flag1} <span>${PARTY_NAMES[dist.winner1.party]}</span></span>
-            <span class="text-slate-400">·</span>
-            <span class="flex items-center gap-0.5">${flag2} <span>${PARTY_NAMES[dist.winner2.party]}</span></span>
+          <span class="font-bold text-stone-800 dark:text-stone-300 truncate">${dist.name}</span>
+          <div class="text-[10px] text-stone-500 font-sans-num flex items-center gap-1.5 shrink-0">
+            <span class="flex items-center gap-0.5">${flag1} <span>${PARTY_SHORT_NAMES[dist.winner1.party]}</span></span>
+            <span class="text-stone-400">·</span>
+            <span class="flex items-center gap-0.5">${flag2} <span>${PARTY_SHORT_NAMES[dist.winner2.party]}</span></span>
           </div>
         `;
         btn.onclick = () => {
@@ -1795,7 +1643,7 @@
 
       try {
         const canvas = await html2canvas(mapWrapper, {
-          backgroundColor: currentTheme === 'dark' ? '#090d16' : '#f8fafc',
+          backgroundColor: currentTheme === 'dark' ? '#0c0a09' : '#f5f4f0',
           useCORS: true,
           logging: false,
           scale: 2
@@ -1803,14 +1651,14 @@
 
         const imageUri = canvas.toDataURL('image/png');
         const link = document.createElement('a');
-        link.download = `선거시뮬레이션_${electionScope}_${mapMode}_지도.png`;
+        link.download = `유신총선_${electionScope}_${mapMode}_지도.png`;
         link.href = imageUri;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        showToast("지도 이미지가 저장되었습니다.");
+        showToast("지도 사진이 저장되었습니다.");
       } catch (err) {
-        showToast("지도 이미지 저장에 실패했습니다.", "fa-solid fa-triangle-exclamation");
+        showToast("지도 사진 저장에 실패했습니다.", "fa-solid fa-triangle-exclamation");
       } finally {
         captureBtn.disabled = false;
         captureBtn.innerHTML = originalBtnContent;
