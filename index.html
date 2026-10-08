@@ -203,8 +203,29 @@
       ];
       const combined = searchStrings.join(' ');
 
+      // 0. 경기도 광주시 및 성남시 중원구 오인식 방지 최우선 강제 매핑 (광주광역시 호남 오분류 원천 차단)
+      if (
+        combined.includes('중원') || 
+        combined.includes('경기') && combined.includes('광주') ||
+        combined.includes('광주시·중원') ||
+        combined.includes('광주·중원') ||
+        combined.includes('광주시·중원구') ||
+        combined.includes('광주시 중원구') ||
+        combined.includes('광주시갑') ||
+        combined.includes('광주시을') ||
+        combined.includes('광주시 갑') ||
+        combined.includes('광주시 을')
+      ) {
+        const item = METRO_DEFINITIONS.find(m => m.metroId === 'gyeonggi');
+        return { metro: item, region: 'capital' };
+      }
+
       // 앞머리 또는 포함된 17개 광역시도 명칭 정밀 대조 (긴 명칭부터 우선 검색)
       for (const item of METRO_DEFINITIONS) {
+        // 광주광역시 체크 시 경기도 광주 지명이 섞여있으면 스킵
+        if (item.metroId === 'gwangju' && (combined.includes('중원') || combined.includes('경기'))) {
+          continue;
+        }
         for (const alias of item.aliases) {
           if (combined.includes(alias)) {
             return { metro: item, region: item.region };
@@ -706,6 +727,7 @@
       '남동': { drp: 1, ndp: 4, dup: 0, ind: 0 },
       '분당': { drp: 10, ndp: -3, dup: 1, ind: 0 },
       '수정': { drp: -4, ndp: 8, dup: 0, ind: 1 },
+      '중원': { drp: -3, ndp: 8, dup: 0, ind: 1 },
       '수원': { drp: -4, ndp: 9, dup: 0, ind: 0 },
       '화성': { drp: -6, ndp: 2, dup: 18, ind: 1 },
       '용인': { drp: 3, ndp: 2, dup: 0, ind: 0 },
