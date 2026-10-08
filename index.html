@@ -1309,13 +1309,23 @@
       mapInstance = L.map('map', {
         zoomControl: false,
         attributionControl: false,
-        preferCanvas: true
-      }).setView([36.2, 127.8], 7);
+        preferCanvas: true,
+        minZoom: 5,
+        maxZoom: 13
+      }).setView([36.0, 127.8], 7);
 
       L.control.zoom({ position: 'topright' }).addTo(mapInstance);
 
-      setTimeout(() => { if (mapInstance) mapInstance.invalidateSize(true); }, 100);
-      window.addEventListener('resize', () => { if (mapInstance) mapInstance.invalidateSize(true); });
+      // 렌더링 즉시 사이즈 재계산하여 타일/폴리곤 누락 방지
+      setTimeout(() => { 
+        if (mapInstance) {
+          mapInstance.invalidateSize(true);
+        } 
+      }, 200);
+
+      window.addEventListener('resize', () => { 
+        if (mapInstance) mapInstance.invalidateSize(true); 
+      });
 
       loadTargetGeoJSON();
     }
@@ -1327,13 +1337,17 @@
       let geojsonData = null;
       try {
         const resp = await fetch(TARGET_JSDELIVR, { cache: 'no-cache' });
-        if (resp.ok) geojsonData = await resp.json();
+        if (resp.ok) {
+          geojsonData = await resp.json();
+        }
       } catch (e) {}
 
       if (!geojsonData) {
         try {
           const resp = await fetch(TARGET_GITHUB_RAW, { cache: 'no-cache' });
-          if (resp.ok) geojsonData = await resp.json();
+          if (resp.ok) {
+            geojsonData = await resp.json();
+          }
         } catch (e) {}
       }
 
@@ -1346,16 +1360,21 @@
 
     function applyGeoJsonToMap(geojsonData) {
       if (!mapInstance) return;
-      if (geojsonLayer) mapInstance.removeLayer(geojsonLayer);
+      if (geojsonLayer) {
+        mapInstance.removeLayer(geojsonLayer);
+        geojsonLayer = null;
+      }
 
       geojsonLayer = L.geoJSON(geojsonData, {
         style: featureStyle,
         onEachFeature: onEachFeature
       }).addTo(mapInstance);
 
+      // 전국 범위로 자동 맞춤
       try {
-        if (geojsonLayer.getBounds().isValid()) {
-          mapInstance.fitBounds(geojsonLayer.getBounds(), { padding: [20, 20] });
+        const bounds = geojsonLayer.getBounds();
+        if (bounds && bounds.isValid()) {
+          mapInstance.fitBounds(bounds, { padding: [15, 15] });
         }
       } catch (e) {}
     }
@@ -1371,7 +1390,7 @@
       for (const d of simulationResults) {
         const dName = d.name.toLowerCase();
         for (const cName of candidateNames) {
-          if (cName.includes(dName) || dName.includes(cName)) return d;
+          if (cName === dName || cName.includes(dName) || dName.includes(cName)) return d;
         }
       }
       return simulationResults[0];
@@ -1379,36 +1398,30 @@
 
     function featureStyle(feature) {
       const matched = matchDistrictByFeature(feature);
-      let fillColor = '#64748b';
-      let fillOpacity = 0.55;
+      let fillColor = '#64748b'; // 기본 슬레이트 회색
 
       if (matched) {
         const regMeta = matched.regionStrength || getRegionStrengthMeta(matched.region);
 
         if (electionScope === 'governor') {
+          // 시·도지사 모드: 구역별 1위 정당의 고유 불투명 색상
           const govDistWinner = matched.governorData?.winner;
           if (govDistWinner) {
-            fillColor = PARTY_COLORS[govDistWinner.party] || '#64748b';
-            fillOpacity = govDistWinner.margin >= 15 ? 0.95 : (govDistWinner.margin >= 7 ? 0.72 : 0.50);
+            const tier = govDistWinner.margin >= 15 ? 'strong' : (govDistWinner.margin >= 7 ? 'lean' : 'swing');
+            fillColor = getSolidFillColor(govDistWinner.party, tier);
           } else {
-            const m = matched.metro;
-            const targetMetroId = m ? (m.id || m.metroId) : null;
-            const govWinner = targetMetroId ? metroResults.find(r => r.id === targetMetroId)?.winner : null;
-            if (govWinner) {
-              fillColor = PARTY_COLORS[govWinner.party] || '#64748b';
-              fillOpacity = 0.85;
-            }
+            fillColor = getSolidFillColor('drp', 'lean');
           }
         } else {
+          // 총선 모드: 투명도가 아닌 3단계 완전 불투명 색상으로 채색
           if (mapMode === 'first') {
-            // 1위 지도: 1위 당선 정당 색상 및 권역 지지강도
-            fillColor = PARTY_COLORS[matched.winner1.party] || '#64748b';
-            fillOpacity = regMeta.opacity;
+            // 1위 지도: 1위 당선 정당의 압승(진함)/우세(표준)/경합(밝음) 색상
+            fillColor = getSolidFillColor(matched.winner1.party, regMeta.tier);
           } else {
-            // 2위 지도: 2위 당선 정당 색상 및 2위-3위 스윙 격차에 따른 채색 강도
-            fillColor = PARTY_COLORS[matched.winner2.party] || '#64748b';
-            // 2위-3위 격차가 클수록 안정권(진함), 박빙일수록 스윙 접전(연함)
-            fillOpacity = matched.margin23 >= 7.0 ? 0.90 : (matched.margin23 >= 3.0 ? 0.65 : 0.42);
+            // 2위 지도: 2위 당선 정당의 2-3위 스윙 격차에 따른 고유 색상
+            const margin23 = matched.winner2.margin || 0;
+            const swingTier = margin23 >= 7.0 ? 'strong' : (margin23 >= 3.0 ? 'lean' : 'swing');
+            fillColor = getSolidFillColor(matched.winner2.party, swingTier);
           }
         }
       }
@@ -1416,9 +1429,9 @@
       return {
         fillColor: fillColor,
         weight: 1.5,
-        opacity: 0.9,
+        opacity: 1.0,      // 테두리 불투명
         color: currentTheme === 'dark' ? '#0c0a09' : '#ffffff',
-        fillOpacity: fillOpacity
+        fillOpacity: 1.0   // 1.0으로 고정하여 투명도 그라데이션 제거
       };
     }
 
@@ -1426,7 +1439,7 @@
       layer.on({
         mouseover: (e) => {
           const l = e.target;
-          l.setStyle({ weight: 3, color: '#d97706', fillOpacity: 0.95 });
+          l.setStyle({ weight: 3.5, color: '#f59e0b' });
           l.bringToFront();
         },
         mouseout: (e) => {
@@ -1438,7 +1451,9 @@
             selectDistrict(matched);
             try {
               const bounds = e.target.getBounds();
-              mapInstance.fitBounds(bounds, { maxZoom: 10, padding: [40, 40] });
+              if (bounds && bounds.isValid()) {
+                mapInstance.fitBounds(bounds, { maxZoom: 10, padding: [40, 40] });
+              }
             } catch (err) {
               mapInstance.panTo(e.latlng);
             }
