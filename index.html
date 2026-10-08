@@ -15,19 +15,260 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   
   <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            drp: { light: '#92400e', DEFAULT: '#78350f', dark: '#451a03' },
-            ndp: { light: '#ef4444', DEFAULT: '#dc2626', dark: '#991b1b' },
-            dup: { light: '#facc15', DEFAULT: '#eab308', dark: '#a16207' },
-            ind: { light: '#94a3b8', DEFAULT: '#64748b', dark: '#334155' }
+    // 17개 광역시·도 명칭(풀네임, 축약형, 흔한 표기) 기반 권역 정의
+    const METRO_DEFINITIONS = [
+      {
+        id: 'seoul',
+        metroId: 'seoul',
+        metroName: '서울특별시',
+        name: '서울특별시',
+        region: 'capital',
+        aliases: ['서울특별시', '서울시', '서울']
+      },
+      {
+        id: 'busan',
+        metroId: 'busan',
+        metroName: '부산광역시',
+        name: '부산광역시',
+        region: 'pk',
+        aliases: ['부산광역시', '부산시', '부산']
+      },
+      {
+        id: 'daegu',
+        metroId: 'daegu',
+        metroName: '대구광역시',
+        name: '대구광역시',
+        region: 'tk',
+        aliases: ['대구광역시', '대구시', '대구']
+      },
+      {
+        id: 'incheon',
+        metroId: 'incheon',
+        metroName: '인천광역시',
+        name: '인천광역시',
+        region: 'capital',
+        aliases: ['인천광역시', '인천시', '인천']
+      },
+      {
+        id: 'gwangju',
+        metroId: 'gwangju',
+        metroName: '광주광역시',
+        name: '광주광역시',
+        region: 'honam',
+        aliases: ['광주광역시', '광주시', '광주']
+      },
+      {
+        id: 'daejeon',
+        metroId: 'daejeon',
+        metroName: '대전광역시',
+        name: '대전광역시',
+        region: 'chungcheong',
+        aliases: ['대전광역시', '대전시', '대전']
+      },
+      {
+        id: 'ulsan',
+        metroId: 'ulsan',
+        metroName: '울산광역시',
+        name: '울산광역시',
+        region: 'pk',
+        aliases: ['울산광역시', '울산시', '울산']
+      },
+      {
+        id: 'sejong',
+        metroId: 'sejong',
+        metroName: '세종특별자치시',
+        name: '세종특별자치시',
+        region: 'chungcheong',
+        aliases: ['세종특별자치시', '세종시', '세종']
+      },
+      {
+        id: 'gyeonggi',
+        metroId: 'gyeonggi',
+        metroName: '경기도',
+        name: '경기도',
+        region: 'capital',
+        aliases: ['경기도', '경기']
+      },
+      {
+        id: 'gangwon',
+        metroId: 'gangwon',
+        metroName: '강원특별자치도',
+        name: '강원특별자치도',
+        region: 'gangwon',
+        aliases: ['강원특별자치도', '강원도', '강원']
+      },
+      {
+        id: 'chungbuk',
+        metroId: 'chungbuk',
+        metroName: '충청북도',
+        name: '충청북도',
+        region: 'chungcheong',
+        aliases: ['충청북도', '충북']
+      },
+      {
+        id: 'chungnam',
+        metroId: 'chungnam',
+        metroName: '충청남도',
+        name: '충청남도',
+        region: 'chungcheong',
+        aliases: ['충청남도', '충남']
+      },
+      {
+        id: 'jeonbuk',
+        metroId: 'jeonbuk',
+        metroName: '전북특별자치도',
+        name: '전북특별자치도',
+        region: 'honam',
+        aliases: ['전북특별자치도', '전라북도', '전북']
+      },
+      {
+        id: 'jeonnam',
+        metroId: 'jeonnam',
+        metroName: '전라남도',
+        name: '전라남도',
+        region: 'honam',
+        aliases: ['전라남도', '전남']
+      },
+      {
+        id: 'gyeongbuk',
+        metroId: 'gyeongbuk',
+        metroName: '경상북도',
+        name: '경상북도',
+        region: 'tk',
+        aliases: ['경상북도', '경북']
+      },
+      {
+        id: 'gyeongnam',
+        metroId: 'gyeongnam',
+        metroName: '경상남도',
+        name: '경상남도',
+        region: 'pk',
+        aliases: ['경상남도', '경남']
+      },
+      {
+        id: 'jeju',
+        metroId: 'jeju',
+        metroName: '제주특별자치도',
+        name: '제주특별자치도',
+        region: 'jeju',
+        aliases: ['제주특별자치도', '제주도', '제주']
+      }
+    ];
+
+    // 행정구역 텍스트나 선거구명 앞머리에서 17개 시·도 및 권역을 100% 정밀 파악
+    function parseMetroAndRegion(text, properties = {}) {
+      // 1. properties 내 광역 시도 코드(SIG_CD 앞 2자리) 기반 즉시 정확 판별
+      const sigCd = String(properties.SIG_CD || properties.adm_cd || properties.code || properties.id || '').trim();
+      if (sigCd.length >= 2) {
+        const prefix = sigCd.substring(0, 2);
+        const codeMap = {
+          '11': { metroId: 'seoul', region: 'capital' },
+          '26': { metroId: 'busan', region: 'pk' },
+          '27': { metroId: 'daegu', region: 'tk' },
+          '28': { metroId: 'incheon', region: 'capital' },
+          '29': { metroId: 'gwangju', region: 'honam' },
+          '30': { metroId: 'daejeon', region: 'chungcheong' },
+          '31': { metroId: 'ulsan', region: 'pk' },
+          '36': { metroId: 'sejong', region: 'chungcheong' },
+          '41': { metroId: 'gyeonggi', region: 'capital' },
+          '42': { metroId: 'gangwon', region: 'gangwon' }, // 구 강원코드
+          '43': { metroId: 'chungbuk', region: 'chungcheong' },
+          '44': { metroId: 'chungnam', region: 'chungcheong' },
+          '45': { metroId: 'jeonbuk', region: 'honam' },
+          '46': { metroId: 'jeonnam', region: 'honam' },
+          '47': { metroId: 'gyeongbuk', region: 'tk' },
+          '48': { metroId: 'gyeongnam', region: 'pk' },
+          '50': { metroId: 'jeju', region: 'jeju' },
+          '51': { metroId: 'gangwon', region: 'gangwon' }, // 강원특별자치도 신규
+          '52': { metroId: 'jeonbuk', region: 'honam' }    // 전북특별자치도 신규
+        };
+        if (codeMap[prefix]) {
+          const matchDef = METRO_DEFINITIONS.find(m => m.metroId === codeMap[prefix].metroId);
+          if (matchDef) {
+            return { metro: matchDef, region: matchDef.region };
           }
         }
       }
-    };
+
+      // 2. 텍스트(선거구명, SGG_NM, DISTRICT_NM 등)에서 시·도 명칭 검색
+      // 여러 텍스트 후보들을 모아 확인
+      const searchStrings = [
+        String(text || ''),
+        String(properties.DISTRICT_NM || ''),
+        String(properties.SGG_NM || ''),
+        String(properties.SD_NM || ''),
+        String(properties.SIG_KOR_NM || ''),
+        String(properties.adm_nm || ''),
+        String(properties.name || '')
+      ];
+      const combined = searchStrings.join(' ');
+
+      // 앞머리 또는 포함된 17개 광역시도 명칭 정밀 대조 (긴 명칭부터 우선 검색)
+      for (const item of METRO_DEFINITIONS) {
+        for (const alias of item.aliases) {
+          if (combined.includes(alias)) {
+            return { metro: item, region: item.region };
+          }
+        }
+      }
+
+      // 3. 시도명이 생략된 경우 기초 지자체/선거구 핵심 지명으로 역추적
+      if (combined.includes('수원') || combined.includes('성남') || combined.includes('분당') || combined.includes('고양') || combined.includes('용인') || combined.includes('부천') || combined.includes('안산') || combined.includes('안양') || combined.includes('남양주') || combined.includes('화성') || combined.includes('평택') || combined.includes('시흥') || combined.includes('파주') || combined.includes('의정부') || combined.includes('김포') || combined.includes('광명') || combined.includes('군포') || combined.includes('하남') || combined.includes('오산') || combined.includes('이천') || combined.includes('안성') || combined.includes('의왕') || combined.includes('양주') || combined.includes('포천') || combined.includes('여주') || combined.includes('동두천') || combined.includes('과천') || combined.includes('가평') || combined.includes('양평') || combined.includes('연천')) {
+        const item = METRO_DEFINITIONS.find(m => m.metroId === 'gyeonggi');
+        return { metro: item, region: 'capital' };
+      }
+      if (combined.includes('종로') || combined.includes('중구') || combined.includes('용산') || combined.includes('성동') || combined.includes('광진') || combined.includes('동대문') || combined.includes('중랑') || combined.includes('성북') || combined.includes('강북') || combined.includes('도봉') || combined.includes('노원') || combined.includes('은평') || combined.includes('서대문') || combined.includes('마포') || combined.includes('양천') || combined.includes('강서') || combined.includes('구로') || combined.includes('금천') || combined.includes('영등포') || combined.includes('동작') || combined.includes('관악') || combined.includes('서초') || combined.includes('강남') || combined.includes('송파') || combined.includes('강동')) {
+        const item = METRO_DEFINITIONS.find(m => m.metroId === 'seoul');
+        return { metro: item, region: 'capital' };
+      }
+      if (combined.includes('미추홀') || combined.includes('연수') || combined.includes('남동') || combined.includes('부평') || combined.includes('계양') || combined.includes('서구') && combined.includes('인천') || combined.includes('강화') || combined.includes('옹진')) {
+        const item = METRO_DEFINITIONS.find(m => m.metroId === 'incheon');
+        return { metro: item, region: 'capital' };
+      }
+      if (combined.includes('창원') || combined.includes('진주') || combined.includes('통영') || combined.includes('사천') || combined.includes('김해') || combined.includes('밀양') || combined.includes('거제') || combined.includes('양산') || combined.includes('의령') || combined.includes('함안') || combined.includes('창녕') || combined.includes('고성') || combined.includes('남해') || combined.includes('하동') || combined.includes('산청') || combined.includes('함양') || combined.includes('거창') || combined.includes('합천')) {
+        const item = METRO_DEFINITIONS.find(m => m.metroId === 'gyeongnam');
+        return { metro: item, region: 'pk' };
+      }
+      if (combined.includes('포항') || combined.includes('경주') || combined.includes('김천') || combined.includes('안동') || combined.includes('구미') || combined.includes('영주') || combined.includes('영천') || combined.includes('상주') || combined.includes('문경') || combined.includes('경산') || combined.includes('군위') || combined.includes('의성') || combined.includes('청송') || combined.includes('영양') || combined.includes('영덕') || combined.includes('청도') || combined.includes('고령') || combined.includes('성주') || combined.includes('칠곡') || combined.includes('예천') || combined.includes('봉화') || combined.includes('울진') || combined.includes('울릉')) {
+        const item = METRO_DEFINITIONS.find(m => m.metroId === 'gyeongbuk');
+        return { metro: item, region: 'tk' };
+      }
+      if (combined.includes('전주') || combined.includes('군산') || combined.includes('익산') || combined.includes('정읍') || combined.includes('남원') || combined.includes('김제') || combined.includes('완주') || combined.includes('진안') || combined.includes('무주') || combined.includes('장수') || combined.includes('임실') || combined.includes('순창') || combined.includes('고창') || combined.includes('부안')) {
+        const item = METRO_DEFINITIONS.find(m => m.metroId === 'jeonbuk');
+        return { metro: item, region: 'honam' };
+      }
+      if (combined.includes('목포') || combined.includes('여수') || combined.includes('순천') || combined.includes('나주') || combined.includes('광양') || combined.includes('담양') || combined.includes('곡성') || combined.includes('구례') || combined.includes('고흥') || combined.includes('보성') || combined.includes('화순') || combined.includes('장흥') || combined.includes('강진') || combined.includes('해남') || combined.includes('영암') || combined.includes('무안') || combined.includes('함평') || combined.includes('영광') || combined.includes('장성') || combined.includes('완도') || combined.includes('진도') || combined.includes('신안')) {
+        const item = METRO_DEFINITIONS.find(m => m.metroId === 'jeonnam');
+        return { metro: item, region: 'honam' };
+      }
+      if (combined.includes('천안') || combined.includes('공주') || combined.includes('보령') || combined.includes('아산') || combined.includes('서산') || combined.includes('논산') || combined.includes('계룡') || combined.includes('당진') || combined.includes('금산') || combined.includes('부여') || combined.includes('서천') || combined.includes('청양') || combined.includes('홍성') || combined.includes('예산') || combined.includes('태안')) {
+        const item = METRO_DEFINITIONS.find(m => m.metroId === 'chungnam');
+        return { metro: item, region: 'chungcheong' };
+      }
+      if (combined.includes('청주') || combined.includes('충주') || combined.includes('제천') || combined.includes('보은') || combined.includes('옥천') || combined.includes('영동') || combined.includes('증평') || combined.includes('진천') || combined.includes('괴산') || combined.includes('음성') || combined.includes('단양')) {
+        const item = METRO_DEFINITIONS.find(m => m.metroId === 'chungbuk');
+        return { metro: item, region: 'chungcheong' };
+      }
+      if (combined.includes('춘천') || combined.includes('원주') || combined.includes('강릉') || combined.includes('동해') || combined.includes('태백') || combined.includes('속초') || combined.includes('삼척') || combined.includes('홍천') || combined.includes('횡성') || combined.includes('영월') || combined.includes('평창') || combined.includes('정선') || combined.includes('철원') || combined.includes('화천') || combined.includes('양구') || combined.includes('인제') || combined.includes('고성') && combined.includes('강원') || combined.includes('양양')) {
+        const item = METRO_DEFINITIONS.find(m => m.metroId === 'gangwon');
+        return { metro: item, region: 'gangwon' };
+      }
+      if (combined.includes('서귀포')) {
+        const item = METRO_DEFINITIONS.find(m => m.metroId === 'jeju');
+        return { metro: item, region: 'jeju' };
+      }
+
+      // 기본값 수도권/서울
+      return { metro: METRO_DEFINITIONS[0], region: 'capital' };
+    }
+
+    function inferRegionFromText(text, properties = {}) {
+      return parseMetroAndRegion(text, properties).region;
+    }
+
+    function inferMetroFromDistrict(districtName, properties = {}) {
+      return parseMetroAndRegion(districtName, properties).metro;
+    }
   </script>
 
   <style>
@@ -172,16 +413,19 @@
     <!-- Left Sidebar -->
     <aside id="sidebar" class="w-full sm:w-[450px] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-30 transition-transform duration-300 absolute lg:relative inset-y-0 left-0 shadow-2xl -translate-x-full lg:translate-x-0 h-full">
       
-      <!-- Panel Tabs: 총선 설정 / 시도지사 지선(랜덤) / 반원 의석 차트 -->
-      <div class="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 p-2 gap-1.5 text-[11px] font-bold shrink-0">
-        <button id="tab-btn-assembly-setting" onclick="switchSettingTab('assembly-setting')" class="flex-1 py-2 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-700 transition-all text-center">
-          <i class="fa-solid fa-sliders text-amber-500 mr-1"></i> 총선 설정 (무소속 포함)
+      <!-- Panel Tabs: 총선 설정 / 시도지사 지선(랜덤) / 반원 의석 / 선거구 결과 4분할 -->
+      <div class="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 p-2 gap-1 text-[10px] sm:text-[11px] font-bold shrink-0">
+        <button id="tab-btn-assembly-setting" onclick="switchSettingTab('assembly-setting')" class="flex-1 py-2 px-1 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-700 transition-all text-center truncate">
+          <i class="fa-solid fa-sliders text-amber-500 mr-0.5"></i> 총선 설정
         </button>
-        <button id="tab-btn-governor-setting" onclick="switchSettingTab('governor-setting')" class="flex-1 py-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all text-center">
-          <i class="fa-solid fa-dice text-emerald-500 mr-1"></i> 시도지사 (랜덤)
+        <button id="tab-btn-governor-setting" onclick="switchSettingTab('governor-setting')" class="flex-1 py-2 px-1 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all text-center truncate">
+          <i class="fa-solid fa-dice text-emerald-500 mr-0.5"></i> 시도지사
         </button>
-        <button id="tab-btn-detail" onclick="switchSettingTab('detail')" class="flex-1 py-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all text-center">
-          <i class="fa-solid fa-chart-pie text-red-500 mr-1"></i> 반원 의석
+        <button id="tab-btn-detail" onclick="switchSettingTab('detail')" class="flex-1 py-2 px-1 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all text-center truncate">
+          <i class="fa-solid fa-chart-pie text-red-500 mr-0.5"></i> 반원 의석
+        </button>
+        <button id="tab-btn-district-result" onclick="switchSettingTab('district-result')" class="flex-1 py-2 px-1 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all text-center truncate">
+          <i class="fa-solid fa-location-crosshairs text-sky-500 mr-0.5"></i> 선거구 결과
         </button>
       </div>
 
@@ -230,6 +474,7 @@
         </div>
       </div>
 
+      <!-- 반원 의석 전용 탭 -->
       <div id="tab-content-detail" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 hidden">
         
         <!-- 부채형 반원 도넛 차트 (빈 폭 45% 고정, 의석 도트 배제) -->
@@ -285,6 +530,16 @@
           </div>
         </div>
 
+        <div class="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+          <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">지도의 각 구역별 상세 득표와 당선 현황은 <strong class="text-slate-800 dark:text-slate-200">'선거구 결과'</strong> 탭에서 확인하실 수 있습니다.</p>
+          <button onclick="switchSettingTab('district-result')" class="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 mx-auto">
+            <i class="fa-solid fa-location-crosshairs text-sky-500"></i> 선거구 결과 탭으로 이동
+          </button>
+        </div>
+      </div>
+
+      <!-- 독립된 선거구 결과 전용 탭 -->
+      <div id="tab-content-district-result" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 hidden">
         <!-- 선택된 선거구 결과 카드 -->
         <div id="district-info-card" class="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
           <div class="text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-between">
@@ -305,7 +560,7 @@
             <span id="fast-list-count" class="text-[10px] text-slate-400 font-mono">0개 구역</span>
           </div>
           <input type="text" id="district-search-input" oninput="filterDistrictList(this.value)" placeholder="선거구명 검색 (예: 종로, 수원, 대구, 부산...)" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-red-500">
-          <div id="district-fast-list" class="mt-2 max-h-48 overflow-y-auto custom-scroll space-y-1 text-xs">
+          <div id="district-fast-list" class="mt-2 max-h-56 overflow-y-auto custom-scroll space-y-1 text-xs">
             <!-- Dynamically populated buttons -->
           </div>
         </div>
@@ -541,16 +796,16 @@
     }
 
     function switchSettingTab(tabId) {
-      const tabs = ['assembly-setting', 'governor-setting', 'detail'];
+      const tabs = ['assembly-setting', 'governor-setting', 'detail', 'district-result'];
       tabs.forEach(t => {
         const btn = document.getElementById(`tab-btn-${t}`);
         const content = document.getElementById(`tab-content-${t}`);
         if (!btn || !content) return;
         if (t === tabId) {
-          btn.className = 'flex-1 py-2 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-700 transition-all text-center';
+          btn.className = 'flex-1 py-2 px-1 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-700 transition-all text-center truncate';
           content.classList.remove('hidden');
         } else {
-          btn.className = 'flex-1 py-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all text-center';
+          btn.className = 'flex-1 py-2 px-1 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all text-center truncate';
           content.classList.add('hidden');
         }
       });
@@ -606,34 +861,6 @@
   </script>
 
   <script>
-    function inferRegionFromText(text) {
-      const t = String(text || '').toLowerCase();
-      if (t.includes('서울') || t.includes('경기') || t.includes('인천') || t.includes('수원') || t.includes('성남') || t.includes('고양') || t.includes('용인') || t.includes('화성') || t.includes('부천') || t.includes('안양') || t.includes('도봉') || t.includes('마포') || t.includes('종로') || t.includes('용산') || t.includes('서초') || t.includes('강남') || t.includes('송파') || t.includes('계양')) return 'capital';
-      if (t.includes('대구') || t.includes('경북') || t.includes('포항') || t.includes('구미') || t.includes('안동') || t.includes('경산') || t.includes('수성')) return 'tk';
-      if (t.includes('부산') || t.includes('울산') || t.includes('경남') || t.includes('창원') || t.includes('김해') || t.includes('양산') || t.includes('해운대') || t.includes('사하')) return 'pk';
-      if (t.includes('광주') || t.includes('전남') || t.includes('전북') || t.includes('전주') || t.includes('목포') || t.includes('여수') || t.includes('순천') || t.includes('익산') || t.includes('군산') || t.includes('광산')) return 'honam';
-      if (t.includes('대전') || t.includes('세종') || t.includes('충남') || t.includes('충북') || t.includes('천안') || t.includes('청주') || t.includes('공주') || t.includes('부여') || t.includes('유성')) return 'chungcheong';
-      if (t.includes('강원') || t.includes('춘천') || t.includes('원주') || t.includes('강릉') || t.includes('동해')) return 'gangwon';
-      if (t.includes('제주') || t.includes('서귀포')) return 'jeju';
-      return 'capital';
-    }
-
-    function inferMetroFromDistrict(districtName) {
-      const d = String(districtName || '');
-      for (const m of METRO_DIVISIONS) {
-        const shortName = m.name.slice(0, 2);
-        if (d.includes(shortName)) return m;
-      }
-      if (d.includes('수원') || d.includes('성남') || d.includes('용인') || d.includes('부천') || d.includes('화성') || d.includes('고양') || d.includes('분당')) return METRO_DIVISIONS[1];
-      if (d.includes('창원') || d.includes('김해') || d.includes('양산')) return METRO_DIVISIONS[15];
-      if (d.includes('포항') || d.includes('구미') || d.includes('안동')) return METRO_DIVISIONS[14];
-      if (d.includes('천안') || d.includes('공주') || d.includes('부여')) return METRO_DIVISIONS[11];
-      if (d.includes('청주') || d.includes('충주')) return METRO_DIVISIONS[10];
-      if (d.includes('전주') || d.includes('군산')) return METRO_DIVISIONS[12];
-      if (d.includes('목포') || d.includes('순천') || d.includes('여수')) return METRO_DIVISIONS[13];
-      return METRO_DIVISIONS[0];
-    }
-
     function getRegionStrengthMeta(regionKey) {
       const bias = assemblySupport[regionKey]?.bias || { drp: 40, ndp: 40, dup: 10, ind: 10 };
       const sorted = [
@@ -789,6 +1016,8 @@
       if (isNaN(val) || val < 0) val = 0;
       if (val > 100) val = 100;
       assemblySupport[regionKey].bias[party] = val;
+      
+      // 권역 입력 변경 시 즉각 전국 시뮬레이션 및 선거구 전체 갱신 실행
       runSimulation();
     }
 
@@ -837,9 +1066,64 @@
       });
 
       document.getElementById('governor-tally-badge').textContent = `공화 ${govTally.drp} : 신민 ${govTally.ndp} : 통일 ${govTally.dup} : 무소속 ${govTally.ind}`;
+      
+      // 전국 각 선거구별 시·도지사 득표 현황도 동기화 계산
+      updateAllDistrictsGovernorData();
       renderGovernorList();
       if (electionScope === 'governor') updateMapColorsAndPopups();
+      if (activeSelectedDistrict) showDistrictDetail(activeSelectedDistrict);
       showToast("17개 시·도지사 무작위 득표율이 추첨되었습니다.");
+    }
+
+    // 개별 선거구 내에서의 시·도지사 후보별 득표율 산출 (광역 시도 기준 + 선거구 고유 지형 반영)
+    function calculateDistrictGovernorVote(dist, metroData) {
+      if (!metroData) return null;
+      let customLean = { drp: 0, ndp: 0, dup: 0, ind: 0 };
+      if (CSV_DISTRICT_MAP.has(dist.name.toLowerCase())) {
+        customLean = CSV_DISTRICT_MAP.get(dist.name.toLowerCase());
+      } else {
+        for (const [key, l] of Object.entries(DISTRICT_BASE_LEAN)) {
+          if (dist.name.includes(key)) {
+            customLean = l;
+            break;
+          }
+        }
+      }
+
+      let scores = metroData.parties.map(p => {
+        const basePct = p.pct;
+        const districtBias = (customLean[p.party] || 0) * 0.65;
+        let hash = 0;
+        for (let i = 0; i < (dist.name + p.party).length; i++) hash = (hash * 31 + (dist.name + p.party).charCodeAt(i)) & 0xffffffff;
+        const noise = (((Math.abs(hash) % 7) - 3) * 0.4);
+        const score = Math.max(1.0, basePct + districtBias + noise);
+        return { party: p.party, score };
+      });
+
+      const sum = scores.reduce((s, c) => s + c.score, 0);
+      const parties = scores.map(s => {
+        const pct = parseFloat(((s.score / sum) * 100).toFixed(1));
+        const votes = Math.round(160000 * (s.score / sum));
+        return { party: s.party, pct, votes };
+      }).sort((a, b) => b.pct - a.pct);
+
+      const winner = parties[0];
+      const second = parties[1] || { pct: 0 };
+      const margin = parseFloat((winner.pct - second.pct).toFixed(1));
+
+      return {
+        parties,
+        winner: { ...winner, margin }
+      };
+    }
+
+    function updateAllDistrictsGovernorData() {
+      simulationResults.forEach(dist => {
+        const metroObj = dist.metro || METRO_DEFINITIONS[0];
+        const targetMetroId = metroObj.id || metroObj.metroId;
+        const metroData = metroResults.find(r => r.id === targetMetroId) || metroResults[0];
+        dist.governorData = calculateDistrictGovernorVote(dist, metroData);
+      });
     }
 
     function renderGovernorList() {
@@ -883,11 +1167,11 @@
       const targetList = (rawLoadedGeoJson && rawLoadedGeoJson.features) 
         ? rawLoadedGeoJson.features.map((f, idx) => {
             const p = f.properties || {};
-            // CSV의 DISTRICT_NM을 최우선 참조
+            
+            // 1. CSV의 DISTRICT_NM 최우선 참조
             let dName = p.DISTRICT_NM || p.district_nm || p.DIST_NM || '';
             const featureCode = String(p.id || p.code || p.SIG_CD || p.adm_cd || '').toLowerCase();
             
-            // CSV 매핑 테이블에서 코드나 명칭으로 DISTRICT_NM 조회
             if (!dName && featureCode && CSV_DISTRICT_MAP.has(featureCode)) {
               dName = CSV_DISTRICT_MAP.get(featureCode).districtNm;
             }
@@ -901,8 +1185,11 @@
               dName = p.name || p.SGG_NM || p.sgg_nm || p.adm_nm || p.SIG_KOR_NM || p.TITLE || p.EMD_KOR_NM || `제${idx + 1}선거구`;
             }
 
-            const regKey = inferRegionFromText(dName);
-            const metroObj = inferMetroFromDistrict(dName);
+            // 2. 17개 시·도 명칭 기반 정밀 권역 파악
+            const parsed = parseMetroAndRegion(dName, p);
+            const regKey = parsed.region;
+            const metroObj = parsed.metro;
+
             return {
               id: String(p.id || p.code || p.SIG_CD || idx + 1000),
               name: dName,
@@ -914,6 +1201,7 @@
         : getDefaultDistrictsList();
 
       targetList.forEach(dist => {
+        // 권역별 기본 지지율 (유저 입력 반영)
         const regSupport = assemblySupport[dist.region]?.bias || { drp: 40, ndp: 40, dup: 10, ind: 10 };
         
         // Find matching district base lean (CSV DISTRICT_NM 우선 검색)
@@ -923,21 +1211,22 @@
         } else {
           for (const [key, l] of Object.entries(DISTRICT_BASE_LEAN)) {
             if (dist.name.includes(key)) {
-              customLean = l;
-              break;
-            }
-          }
-        }
+        customLean = l;
+        break;
+      }
+    }
+  }
 
-        // 4개 정당 스코어 계산 (후보자 개인 이름 배제)
+  // 4개 정당 스코어 계산: 권역 지지율이 최우선 주축으로 작동하도록 설계
         const parties = ['drp', 'ndp', 'dup', 'ind'];
         let partyScores = parties.map(party => {
-          const base = (regSupport[party] || 10) + (customLean[party] || 0);
+          // 권역 설정 지지율에 선거구 고유 지형적 보정치를 더해 계산
+          const base = (regSupport[party] || 0) + (customLean[party] || 0);
           
           let hash = 0;
           for (let i = 0; i < dist.name.length; i++) hash = (hash * 31 + dist.name.charCodeAt(i)) & 0xffffffff;
-          const noise = 1.0 + (((Math.abs(hash) % 15) - 7) * 0.015);
-          const rawScore = Math.max(2, base * noise);
+          const noise = 1.0 + (((Math.abs(hash) % 9) - 4) * 0.01);
+          const rawScore = Math.max(0.5, base * noise);
           return { party, rawScore };
         });
 
@@ -973,6 +1262,7 @@
       });
 
       simulationResults = simulatedDistricts;
+      updateAllDistrictsGovernorData();
 
       drawSemicircleDonutChart();
       updateMapColorsAndPopups();
@@ -1224,11 +1514,19 @@
         const regMeta = matched.regionStrength || getRegionStrengthMeta(matched.region);
 
         if (electionScope === 'governor') {
-          const m = matched.metro;
-          const govWinner = m ? metroResults.find(r => r.id === m.id)?.winner : null;
-          if (govWinner) {
-            fillColor = PARTY_COLORS[govWinner.party] || '#64748b';
-            fillOpacity = 0.85;
+          // 선거구별 시·도지사 득표 1위 정당 색상 및 선거구 득표 격차 채색
+          const govDistWinner = matched.governorData?.winner;
+          if (govDistWinner) {
+            fillColor = PARTY_COLORS[govDistWinner.party] || '#64748b';
+            fillOpacity = govDistWinner.margin >= 15 ? 0.95 : (govDistWinner.margin >= 7 ? 0.72 : 0.50);
+          } else {
+            const m = matched.metro;
+            const targetMetroId = m ? (m.id || m.metroId) : null;
+            const govWinner = targetMetroId ? metroResults.find(r => r.id === targetMetroId)?.winner : null;
+            if (govWinner) {
+              fillColor = PARTY_COLORS[govWinner.party] || '#64748b';
+              fillOpacity = 0.85;
+            }
           }
         } else {
           // 총선: 1위 또는 2위 지도 모드에 따른 정확한 색상 칠하기
@@ -1283,14 +1581,95 @@
     function selectDistrict(dist) {
       activeSelectedDistrict = dist;
       showDistrictDetail(dist);
+      // 지도에서 선거구를 클릭했을 때 '선거구 결과' 탭으로 전환하여 바로 확인 가능하게 지원
+      switchSettingTab('district-result');
     }
 
     function showDistrictDetail(dist) {
-      document.getElementById('selected-district-region').textContent = ASSEMBLY_REGIONS_CONFIG[dist.region]?.name || '권역';
+      const metroObj = dist.metro || METRO_DEFINITIONS[0];
+      const targetMetroId = metroObj.id || metroObj.metroId;
+      const metroData = metroResults.find(r => r.id === targetMetroId) || metroResults[0];
+      const distGovData = dist.governorData || calculateDistrictGovernorVote(dist, metroData);
+
+      document.getElementById('selected-district-region').textContent = `${metroObj.metroName || metroObj.name} · ${ASSEMBLY_REGIONS_CONFIG[dist.region]?.name || '권역'}`;
       document.getElementById('selected-district-name').textContent = dist.name;
 
       const container = document.getElementById('selected-district-candidates');
       container.innerHTML = '';
+
+      // 1. 선거구별(시·군·구) 시·도지사 선거 득표 상세 결과 섹션
+      if (distGovData) {
+        const govWinColor = PARTY_COLORS[distGovData.winner.party];
+        const govWinFlag = getPartyFlagImg(distGovData.winner.party, 'w-4 h-4');
+
+        const distGovSection = document.createElement('div');
+        distGovSection.className = 'p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 mb-3 space-y-2.5';
+        distGovSection.innerHTML = `
+          <div class="flex items-center justify-between pb-2 border-b border-emerald-500/20">
+            <div>
+              <div class="text-xs font-black text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                <i class="fa-solid fa-square-poll-vertical text-emerald-600"></i> ${dist.name} 시·도지사 득표 결과
+              </div>
+              <div class="text-[10px] text-slate-500 dark:text-slate-400">해당 선거구 주민들의 시·도지사 표심 집계</div>
+            </div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-xs flex items-center gap-1" style="background-color: ${govWinColor};">
+              ${govWinFlag} ${PARTY_NAMES[distGovData.winner.party]} 1위 (+${distGovData.winner.margin}%p)
+            </span>
+          </div>
+
+          <div class="space-y-1.5">
+            ${distGovData.parties.map((cand, idx) => {
+              const pColor = PARTY_COLORS[cand.party];
+              const pFlag = getPartyFlagImg(cand.party, 'w-3.5 h-3.5');
+              const isFirst = idx === 0;
+              return `
+                <div class="p-2 rounded-xl bg-white dark:bg-slate-900 border ${isFirst ? 'border-emerald-500/40 shadow-xs' : 'border-slate-200 dark:border-slate-800 opacity-80'}">
+                  <div class="flex items-center justify-between text-xs mb-1">
+                    <div class="flex items-center gap-1.5">
+                      <span class="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black ${isFirst ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}">
+                        ${idx + 1}
+                      </span>
+                      <span class="px-1.5 py-0.5 rounded text-[10px] font-bold text-white flex items-center gap-1" style="background-color: ${pColor};">
+                        ${pFlag} ${PARTY_NAMES[cand.party]}
+                      </span>
+                      ${isFirst ? '<span class="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1 rounded">구역 1위</span>' : ''}
+                    </div>
+                    <div class="text-right">
+                      <span class="font-mono font-black text-xs text-slate-800 dark:text-white">${cand.pct}%</span>
+                      <span class="text-[9px] text-slate-400 block font-mono">${cand.votes.toLocaleString()}표</span>
+                    </div>
+                  </div>
+                  <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all duration-300" style="width: ${cand.pct}%; background-color: ${pColor};"></div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <!-- 소속 광역시·도(전체) 최종 당선 현황 미니 배너 -->
+          ${metroData ? `
+            <div class="mt-2 pt-2 border-t border-emerald-500/20 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400 bg-white/70 dark:bg-slate-900/70 p-2 rounded-xl">
+              <span class="font-bold flex items-center gap-1">
+                <i class="fa-solid fa-landmark text-emerald-600"></i> ${metroData.name} 전체 당선:
+              </span>
+              <span class="font-extrabold flex items-center gap-1 text-slate-900 dark:text-white">
+                ${getPartyFlagImg(metroData.winner.party, 'w-3 h-3')} ${PARTY_NAMES[metroData.winner.party]} 확정 (+${metroData.winner.margin}%p)
+              </span>
+            </div>
+          ` : ''}
+        `;
+        container.appendChild(distGovSection);
+      }
+
+      // 2. 국회 총선 (1구 2인) 선거구 상세 결과 헤더 및 카드
+      const divider = document.createElement('div');
+      divider.className = 'text-[11px] font-bold text-slate-500 dark:text-slate-400 pt-1 pb-1 flex items-center justify-between';
+      divider.innerHTML = `
+        <span class="flex items-center gap-1.5"><i class="fa-solid fa-users-rectangle text-amber-500"></i> 1구 2인 국회 총선 득표 현황</span>
+        <span class="text-[10px] text-slate-400 font-mono">상위 2인 동반 당선</span>
+      `;
+      container.appendChild(divider);
 
       dist.parties.forEach((item, idx) => {
         const isElected = idx < 2;
