@@ -308,6 +308,17 @@
         <span class="hidden sm:inline">사진 저장</span>
       </button>
 
+      <!-- TXT 저장 및 불러오기 -->
+      <button onclick="exportToTXT()" class="px-2.5 sm:px-3 py-1.5 rounded bg-[#292524] text-stone-300 hover:bg-[#44403c] border border-[#57534e] transition flex items-center gap-1.5 text-xs font-bold shadow-sm" title="현재 시뮬레이션 데이터를 TXT 파일로 저장합니다">
+        <i class="fa-solid fa-file-arrow-down text-amber-400"></i>
+        <span class="hidden sm:inline">TXT 저장</span>
+      </button>
+      <button onclick="triggerImportTXT()" class="px-2.5 sm:px-3 py-1.5 rounded bg-[#292524] text-stone-300 hover:bg-[#44403c] border border-[#57534e] transition flex items-center gap-1.5 text-xs font-bold shadow-sm" title="저장된 TXT 파일에서 설정을 불러옵니다">
+        <i class="fa-solid fa-file-arrow-up text-amber-400"></i>
+        <span class="hidden sm:inline">TXT 불러오기</span>
+      </button>
+      <input type="file" id="txt-file-input" accept=".txt,text/plain" class="hidden" onchange="handleImportTXT(event)">
+
       <!-- 테마 토글 버튼 -->
       <button id="theme-toggle-btn" onclick="toggleTheme()" class="p-2 rounded bg-[#292524] text-stone-300 hover:bg-[#44403c] transition border border-[#57534e]" title="화이트/다크 테마 전환">
         <i id="theme-toggle-icon" class="fa-solid fa-moon text-xs sm:text-sm"></i>
@@ -1682,192 +1693,83 @@
   </script>
 
   <script>
-    function escapeXml(unsafe) {
-      if (typeof unsafe !== 'string') unsafe = String(unsafe || '');
-      return unsafe.replace(/[<>&'"]/g, function (c) {
-        switch (c) {
-          case '<': return '&lt;';
-          case '>': return '&gt;';
-          case '&': return '&amp;';
-          case '\'': return '&apos;';
-          case '"': return '&quot;';
-        }
-      });
-    }
-
-    function exportToXML() {
+    function exportToTXT() {
       try {
-        let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-        xml += `<YushinAlternativeHistory version="1.0" exportDate="${new Date().toISOString()}">\n`;
-        
-        // 1. 메타데이터 및 모드
-        xml += `  <Meta>\n`;
-        xml += `    <ElectionScope>${escapeXml(electionScope)}</ElectionScope>\n`;
-        xml += `    <MapMode>${escapeXml(mapMode)}</MapMode>\n`;
-        xml += `  </Meta>\n`;
+        const exportData = {
+          fileTitle: "유신대체역사",
+          exportDate: new Date().toISOString(),
+          electionScope: electionScope,
+          mapMode: mapMode,
+          assemblySupport: assemblySupport,
+          metroResults: metroResults
+        };
 
-        // 2. 7대 권역 정당 지지율 설정
-        xml += `  <RegionalAssemblySupport>\n`;
-        Object.entries(assemblySupport).forEach(([regKey, regData]) => {
-          xml += `    <Region id="${escapeXml(regKey)}" name="${escapeXml(regData.name)}">\n`;
-          xml += `      <Drp>${regData.bias.drp}</Drp>\n`;
-          xml += `      <Ndp>${regData.bias.ndp}</Ndp>\n`;
-          xml += `      <Dup>${regData.bias.dup}</Dup>\n`;
-          xml += `      <Ind>${regData.bias.ind}</Ind>\n`;
-          xml += `    </Region>\n`;
-        });
-        xml += `  </RegionalAssemblySupport>\n`;
-
-        // 3. 17개 광역시도지사 선거 결과
-        xml += `  <GovernorElectionResults>\n`;
-        metroResults.forEach(m => {
-          xml += `    <Metro id="${escapeXml(m.id)}" name="${escapeXml(m.name)}" region="${escapeXml(m.region)}">\n`;
-          xml += `      <Winner party="${escapeXml(m.winner.party)}" margin="${m.winner.margin}"/>\n`;
-          xml += `      <Parties>\n`;
-          m.parties.forEach(p => {
-            xml += `        <Candidate party="${escapeXml(p.party)}" pct="${p.pct}"/>\n`;
-          });
-          xml += `      </Parties>\n`;
-          xml += `    </Metro>\n`;
-        });
-        xml += `  </GovernorElectionResults>\n`;
-
-        // 4. 전국 선거구 개표 결과
-        xml += `  <DistrictResults totalCount="${simulationResults.length}">\n`;
-        simulationResults.forEach(d => {
-          xml += `    <District id="${escapeXml(d.id)}" name="${escapeXml(d.name)}" region="${escapeXml(d.region)}">\n`;
-          xml += `      <Winner1 party="${escapeXml(d.winner1.party)}" votePct="${d.winner1.votePct}" votes="${d.winner1.votes}" margin="${d.winner1.margin}"/>\n`;
-          xml += `      <Winner2 party="${escapeXml(d.winner2.party)}" votePct="${d.winner2.votePct}" votes="${d.winner2.votes}" margin="${d.winner2.margin}"/>\n`;
-          xml += `      <Parties>\n`;
-          d.parties.forEach(p => {
-            xml += `        <PartyItem party="${escapeXml(p.party)}" votePct="${p.votePct}" votes="${p.votes}"/>\n`;
-          });
-          xml += `      </Parties>\n`;
-          if (d.governorData) {
-            xml += `      <GovernorLocal winnerParty="${escapeXml(d.governorData.winner.party)}" margin="${d.governorData.winner.margin}">\n`;
-            d.governorData.parties.forEach(gp => {
-              xml += `        <GovItem party="${escapeXml(gp.party)}" pct="${gp.pct}" votes="${gp.votes}"/>\n`;
-            });
-            xml += `      </GovernorLocal>\n`;
-          }
-          xml += `    </District>\n`;
-        });
-        xml += `  </DistrictResults>\n`;
-
-        xml += `</YushinAlternativeHistory>\n`;
-
-        const blob = new Blob([xml], { type: 'application/xml;charset=utf-8;' });
+        const textContent = JSON.stringify(exportData, null, 2);
+        const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = '유신대체역사.xml';
+        link.download = '유신대체역사.txt';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(link.href);
 
-        showToast("데이터가 '유신대체역사.xml'로 저장되었습니다.", "fa-solid fa-file-circle-check");
+        showToast("데이터가 '유신대체역사.txt'로 저장되었습니다.", "fa-solid fa-file-circle-check");
       } catch (err) {
-        showToast("XML 파일 저장 중 오류가 발생했습니다.", "fa-solid fa-triangle-exclamation");
+        showToast("TXT 파일 저장 중 오류가 발생했습니다.", "fa-solid fa-triangle-exclamation");
       }
     }
 
-    function triggerImportXML() {
-      const fileInput = document.getElementById('xml-file-input');
+    function triggerImportTXT() {
+      const fileInput = document.getElementById('txt-file-input');
       if (fileInput) {
         fileInput.value = '';
         fileInput.click();
       }
     }
 
-    function handleImportXML(event) {
+    function handleImportTXT(event) {
       const file = event.target.files?.[0];
       if (!file) return;
 
       const reader = new FileReader();
       reader.onload = function(e) {
-        const xmlText = e.target.result;
         try {
-          const parser = new DOMParser();
-          const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+          const content = e.target.result;
+          const data = JSON.parse(content);
 
-          const parseError = xmlDoc.getElementsByTagName('parsererror');
-          if (parseError.length > 0) {
-            showToast("유효한 XML 파일이 아닙니다.", "fa-solid fa-triangle-exclamation");
+          if (!data || !data.assemblySupport) {
+            showToast("유효한 유신대체역사 TXT 파일이 아닙니다.", "fa-solid fa-triangle-exclamation");
             return;
           }
 
-          const root = xmlDoc.documentElement;
-          if (root.nodeName !== 'YushinAlternativeHistory') {
-            showToast("유신대체역사 XML 형식이 아닙니다.", "fa-solid fa-triangle-exclamation");
-            return;
+          // 1. 선거 모드 복원
+          if (data.electionScope === 'assembly' || data.electionScope === 'governor') {
+            setElectionScope(data.electionScope);
+          }
+          if (data.mapMode === 'first' || data.mapMode === 'second') {
+            setMapMode(data.mapMode);
           }
 
-          // 1. 모드 복원
-          const scopeNode = xmlDoc.querySelector('Meta > ElectionScope');
-          if (scopeNode) {
-            const savedScope = scopeNode.textContent.trim();
-            if (savedScope === 'assembly' || savedScope === 'governor') {
-              setElectionScope(savedScope);
-            }
-          }
-          const modeNode = xmlDoc.querySelector('Meta > MapMode');
-          if (modeNode) {
-            const savedMode = modeNode.textContent.trim();
-            if (savedMode === 'first' || savedMode === 'second') {
-              setMapMode(savedMode);
-            }
-          }
-
-          // 2. 권역 지지율 설정 복원
-          const regionNodes = xmlDoc.querySelectorAll('RegionalAssemblySupport > Region');
-          if (regionNodes.length > 0) {
-            regionNodes.forEach(reg => {
-              const id = reg.getAttribute('id');
-              if (assemblySupport[id]) {
-                const drp = parseInt(reg.querySelector('Drp')?.textContent || '0');
-                const ndp = parseInt(reg.querySelector('Ndp')?.textContent || '0');
-                const dup = parseInt(reg.querySelector('Dup')?.textContent || '0');
-                const ind = parseInt(reg.querySelector('Ind')?.textContent || '0');
-                assemblySupport[id].bias = { drp, ndp, dup, ind };
+          // 2. 권역별 총선 지지율 복원
+          if (typeof data.assemblySupport === 'object') {
+            Object.keys(data.assemblySupport).forEach(key => {
+              if (assemblySupport[key] && data.assemblySupport[key].bias) {
+                assemblySupport[key].bias = { ...data.assemblySupport[key].bias };
               }
             });
             renderAssemblyInputs();
           }
 
-          // 3. 시도지사 결과 복원
-          const metroNodes = xmlDoc.querySelectorAll('GovernorElectionResults > Metro');
-          if (metroNodes.length > 0) {
-            const restoredGovs = [];
+          // 3. 17개 시도지사 선거 결과 복원
+          if (Array.isArray(data.metroResults) && data.metroResults.length > 0) {
+            metroResults = data.metroResults;
             const govTally = { drp: 0, ndp: 0, dup: 0, ind: 0 };
-
-            metroNodes.forEach(mNode => {
-              const id = mNode.getAttribute('id');
-              const name = mNode.getAttribute('name');
-              const region = mNode.getAttribute('region');
-              const winnerParty = mNode.querySelector('Winner')?.getAttribute('party') || 'drp';
-              const winnerMargin = parseFloat(mNode.querySelector('Winner')?.getAttribute('margin') || '0');
-
-              const partyItems = [];
-              mNode.querySelectorAll('Parties > Candidate').forEach(c => {
-                partyItems.push({
-                  party: c.getAttribute('party'),
-                  pct: parseFloat(c.getAttribute('pct') || '0')
-                });
-              });
-
-              partyItems.sort((a, b) => b.pct - a.pct);
-              govTally[winnerParty] = (govTally[winnerParty] || 0) + 1;
-
-              restoredGovs.push({
-                id,
-                name,
-                region,
-                parties: partyItems,
-                winner: { party: winnerParty, pct: partyItems[0]?.pct || 0, margin: winnerMargin }
-              });
+            metroResults.forEach(m => {
+              if (m.winner && m.winner.party) {
+                govTally[m.winner.party] = (govTally[m.winner.party] || 0) + 1;
+              }
             });
-
-            metroResults = restoredGovs;
             const badgeEl = document.getElementById('governor-tally-badge');
             if (badgeEl) {
               badgeEl.textContent = `공화 ${govTally.drp} : 신민 ${govTally.ndp} : 통일 ${govTally.dup} : 무소속 ${govTally.ind}`;
@@ -1875,14 +1777,14 @@
             renderGovernorList();
           }
 
-          // 4. 시뮬레이션 재실행 및 동기화
+          // 4. 시뮬레이션 및 지도 화면 일괄 갱신
           runSimulation();
-          showToast("‘유신대체역사.xml’ 데이터를 성공적으로 불러왔습니다.", "fa-solid fa-circle-check");
+          showToast("‘유신대체역사.txt’ 데이터를 성공적으로 불러왔습니다.", "fa-solid fa-circle-check");
         } catch (err) {
-          showToast("XML 파일 처리 중 오류가 발생했습니다.", "fa-solid fa-triangle-exclamation");
+          showToast("TXT 파일 읽기 중 오류가 발생했습니다.", "fa-solid fa-triangle-exclamation");
         }
       };
-      reader.readAsText(file);
+      reader.readAsText(file, 'utf-8');
     }
 
     async function downloadMapImage() {
